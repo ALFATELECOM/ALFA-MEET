@@ -17,33 +17,73 @@ export const SocketProvider = ({ children }) => {
   const [connectionError, setConnectionError] = useState(null);
 
   useEffect(() => {
+    // Use the confirmed working backend URL
     const serverUrl = process.env.REACT_APP_SERVER_URL || 'https://alfa-meet.onrender.com';
-    console.log('🔌 Connecting to server:', serverUrl);
-    console.log('🌍 Environment:', process.env.NODE_ENV);
     
-    // Test HTTP connection first
-    fetch(`${serverUrl}/health`)
-      .then(response => response.json())
-      .then(data => {
-        console.log('✅ Backend server is running:', data);
-        setConnectionError(null);
-      })
-      .catch(error => {
-        console.error('❌ Backend server not reachable:', error);
-        console.log('💡 Make sure backend server is running');
-        setConnectionError(`Backend not reachable: ${error.message}`);
-      });
+    // Backup URLs in case primary fails
+    const possibleUrls = [
+      serverUrl,
+      'https://alfa-meet.onrender.com', // Your confirmed working URL
+      'https://alfa-meet-backend.onrender.com', 
+      'https://alfameet.onrender.com',
+      'http://localhost:5000'
+    ].filter(Boolean);
 
-    const newSocket = io(serverUrl, {
-      transports: ['websocket', 'polling'],
-      upgrade: true,
-      rememberUpgrade: true,
-      timeout: 20000,
-      forceNew: true,
-      reconnection: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 1000
-    });
+    console.log('🔌 Trying to connect to backend...');
+    console.log('🌍 Environment:', process.env.NODE_ENV);
+    console.log('🔗 Possible URLs:', possibleUrls);
+
+    let workingUrl = null;
+
+    // Test each URL to find working backend
+    const testUrls = async () => {
+      for (const url of possibleUrls) {
+        try {
+          console.log(`🧪 Testing: ${url}/health`);
+          const response = await fetch(`${url}/health`, {
+            method: 'GET',
+            headers: {
+              'Accept': 'application/json',
+              'Content-Type': 'application/json'
+            }
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            console.log(`✅ Found working backend: ${url}`, data);
+            workingUrl = url;
+            setConnectionError(null);
+            break;
+          }
+        } catch (error) {
+          console.log(`❌ ${url} - Failed: ${error.message}`);
+        }
+      }
+
+      if (!workingUrl) {
+        console.error('❌ No working backend URL found');
+        setConnectionError('No working backend found. Please check your Render deployment.');
+        return;
+      }
+
+      return workingUrl;
+    };
+
+    testUrls().then(serverUrl => {
+      if (!serverUrl) return;
+
+      console.log(`🚀 Connecting to: ${serverUrl}`);
+
+      const newSocket = io(serverUrl, {
+        transports: ['websocket', 'polling'],
+        upgrade: true,
+        rememberUpgrade: true,
+        timeout: 20000,
+        forceNew: true,
+        reconnection: true,
+        reconnectionAttempts: 5,
+        reconnectionDelay: 1000
+      });
 
     // Enhanced connection event handlers
     newSocket.on('connect', () => {
@@ -79,11 +119,14 @@ export const SocketProvider = ({ children }) => {
       console.log('✅ Connection confirmed by backend:', data);
     });
 
-    setSocket(newSocket);
+      setSocket(newSocket);
+    });
 
     return () => {
       console.log('🔌 Cleaning up socket connection');
-      newSocket.close();
+      if (socket) {
+        socket.close();
+      }
     };
   }, []);
 
