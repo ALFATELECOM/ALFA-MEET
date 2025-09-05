@@ -4,6 +4,7 @@ import { useAdmin } from '../../context/AdminContext';
 import MeetingList from '../../components/admin/MeetingList';
 import CreateMeetingModal from '../../components/admin/CreateMeetingModal';
 import EnhancedCreateMeetingModal from '../../components/admin/EnhancedCreateMeetingModal';
+import SimplifiedCreateMeetingModal from '../../components/admin/SimplifiedCreateMeetingModal';
 import MeetingStats from '../../components/admin/MeetingStats';
 import AdvancedMeetingControls from '../../components/admin/AdvancedMeetingControls';
 import EnhancedMeetingControls from '../../components/admin/EnhancedMeetingControls';
@@ -12,6 +13,7 @@ import UserManagementPanel from '../../components/admin/UserManagementPanel';
 import AdvancedAnalytics from '../../components/admin/AdvancedAnalytics';
 import MeetingImageUpload from '../../components/admin/MeetingImageUpload';
 import RoleManagement from '../../components/admin/RoleManagement';
+import ZoomMeetingManager from '../../components/admin/ZoomMeetingManager';
 import {
   PlusIcon,
   CalendarIcon,
@@ -32,7 +34,7 @@ import {
 const AdminDashboard = () => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
-  const { adminUser, logout, meetings } = useAdmin();
+  const { adminUser, logout, meetings, createMeeting } = useAdmin();
   const navigate = useNavigate();
 
   const handleLogout = () => {
@@ -267,17 +269,7 @@ const AdminDashboard = () => {
             
             {activeTab === 'meetings' && (
               <div>
-                <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-lg font-medium text-gray-900">All Meetings</h3>
-                  <button
-                    onClick={() => setShowCreateModal(true)}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded text-sm flex items-center space-x-1"
-                  >
-                    <PlusIcon className="h-4 w-4" />
-                    <span>New</span>
-                  </button>
-                </div>
-                <MeetingList meetings={meetings} showActions={true} />
+                <ZoomMeetingManager onCreateMeeting={() => setShowCreateModal(true)} />
               </div>
             )}
             
@@ -478,12 +470,18 @@ const AdminDashboard = () => {
 
         {/* Create Meeting Modal */}
         {showCreateModal && (
-          <EnhancedCreateMeetingModal
+          <SimplifiedCreateMeetingModal
             isOpen={showCreateModal}
             onClose={() => setShowCreateModal(false)}
             onCreateMeeting={(meetingData) => {
-              console.log('Creating meeting:', meetingData);
+              console.log('Creating meeting with data:', meetingData);
+              const newMeeting = createMeeting(meetingData);
+              console.log('Meeting created successfully:', newMeeting);
               setShowCreateModal(false);
+              // Switch to meetings tab to show the created meeting
+              setActiveTab('meetings');
+              // Show success message
+              alert('Meeting created successfully!');
             }}
           />
         )}
