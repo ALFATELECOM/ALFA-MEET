@@ -931,6 +931,104 @@ io.on('connection', (socket) => {
     console.log(`✋ Hand lowered for user ${userId} in ${roomId}`);
   });
 
+  // WebRTC Signaling Events
+  socket.on('webrtc-offer', (data) => {
+    const { roomId, targetId, offer } = data;
+    console.log(`📞 WebRTC offer from ${socket.id} to ${targetId} in room ${roomId}`);
+    
+    // Forward offer to target user
+    const room = rooms.get(roomId);
+    if (room) {
+      // Find target user's socket
+      for (const [userId, participant] of room.participants.entries()) {
+        if (userId === targetId) {
+          io.to(participant.socketId).emit('webrtc-offer', {
+            fromId: socket.id,
+            offer: offer
+          });
+          break;
+        }
+      }
+    }
+  });
+
+  socket.on('webrtc-answer', (data) => {
+    const { roomId, targetId, answer } = data;
+    console.log(`📞 WebRTC answer from ${socket.id} to ${targetId} in room ${roomId}`);
+    
+    // Forward answer to target user
+    const room = rooms.get(roomId);
+    if (room) {
+      // Find target user's socket
+      for (const [userId, participant] of room.participants.entries()) {
+        if (userId === targetId) {
+          io.to(participant.socketId).emit('webrtc-answer', {
+            fromId: socket.id,
+            answer: answer
+          });
+          break;
+        }
+      }
+    }
+  });
+
+  socket.on('ice-candidate', (data) => {
+    const { roomId, targetId, candidate } = data;
+    console.log(`🧊 ICE candidate from ${socket.id} to ${targetId} in room ${roomId}`);
+    
+    // Forward ICE candidate to target user
+    const room = rooms.get(roomId);
+    if (room) {
+      // Find target user's socket
+      for (const [userId, participant] of room.participants.entries()) {
+        if (userId === targetId) {
+          io.to(participant.socketId).emit('ice-candidate', {
+            fromId: socket.id,
+            candidate: candidate
+          });
+          break;
+        }
+      }
+    }
+  });
+
+  // Media state updates
+  socket.on('toggle-audio', (data) => {
+    const { roomId, userId, isAudioEnabled } = data;
+    const room = rooms.get(roomId);
+    
+    if (room && room.participants.has(userId)) {
+      const participant = room.participants.get(userId);
+      participant.isAudioMuted = !isAudioEnabled;
+      
+      // Notify other participants
+      socket.to(roomId).emit('participant-audio-toggle', {
+        userId,
+        isAudioMuted: participant.isAudioMuted
+      });
+      
+      console.log(`🎤 Audio ${isAudioEnabled ? 'enabled' : 'disabled'} for ${userId} in ${roomId}`);
+    }
+  });
+
+  socket.on('toggle-video', (data) => {
+    const { roomId, userId, isVideoEnabled } = data;
+    const room = rooms.get(roomId);
+    
+    if (room && room.participants.has(userId)) {
+      const participant = room.participants.get(userId);
+      participant.isVideoMuted = !isVideoEnabled;
+      
+      // Notify other participants
+      socket.to(roomId).emit('participant-video-toggle', {
+        userId,
+        isVideoMuted: participant.isVideoMuted
+      });
+      
+      console.log(`📹 Video ${isVideoEnabled ? 'enabled' : 'disabled'} for ${userId} in ${roomId}`);
+    }
+  });
+
   // Leave room
   socket.on('leave-room', (data) => {
     const { roomId } = data;
