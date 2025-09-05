@@ -4,12 +4,18 @@ import { useAdmin } from '../../context/AdminContext';
 import MeetingList from '../../components/admin/MeetingList';
 import CreateMeetingModal from '../../components/admin/CreateMeetingModal';
 import MeetingStats from '../../components/admin/MeetingStats';
+import AdvancedMeetingControls from '../../components/admin/AdvancedMeetingControls';
+import MeetingReports from '../../components/admin/MeetingReports';
 import {
   PlusIcon,
   CalendarIcon,
   UsersIcon,
   ClockIcon,
-  ArrowRightOnRectangleIcon
+  ArrowRightOnRectangleIcon,
+  CogIcon,
+  ChartBarIcon,
+  BoltIcon,
+  ComputerDesktopIcon
 } from '@heroicons/react/24/outline';
 
 const AdminDashboard = () => {
@@ -26,6 +32,8 @@ const AdminDashboard = () => {
   const tabs = [
     { id: 'overview', name: 'Overview', icon: CalendarIcon },
     { id: 'meetings', name: 'Meetings', icon: UsersIcon },
+    { id: 'controls', name: 'Live Controls', icon: CogIcon },
+    { id: 'reports', name: 'Reports', icon: ChartBarIcon },
     { id: 'analytics', name: 'Analytics', icon: ClockIcon }
   ];
 
@@ -156,11 +164,91 @@ const AdminDashboard = () => {
               </div>
             )}
             
+            {activeTab === 'controls' && (
+              <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-medium text-gray-900">Live Meeting Controls</h3>
+                  <div className="flex items-center space-x-2">
+                    <BoltIcon className="h-5 w-5 text-blue-600" />
+                    <span className="text-sm text-blue-600 font-medium">AI Enhanced</span>
+                  </div>
+                </div>
+                
+                {meetings.filter(m => m.status === 'active').length > 0 ? (
+                  <div className="space-y-6">
+                    {meetings.filter(m => m.status === 'active').map(meeting => (
+                      <AdvancedMeetingControls 
+                        key={meeting.id} 
+                        meeting={meeting}
+                        onUpdate={(updates) => {
+                          // Handle meeting updates
+                          console.log('Meeting updated:', updates);
+                        }}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-12 bg-gray-50 rounded-lg">
+                    <ComputerDesktopIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No Active Meetings</h3>
+                    <p className="text-gray-500 mb-4">Start a meeting to access live controls</p>
+                    <button
+                      onClick={() => setShowCreateModal(true)}
+                      className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
+                    >
+                      Create Meeting
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === 'reports' && (
+              <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-medium text-gray-900">Meeting Reports & Analytics</h3>
+                </div>
+                
+                {meetings.length > 0 ? (
+                  <div className="space-y-6">
+                    {meetings.slice(0, 3).map(meeting => (
+                      <div key={meeting.id} className="border border-gray-200 rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-4">
+                          <div>
+                            <h4 className="text-lg font-semibold text-gray-900">{meeting.title}</h4>
+                            <p className="text-sm text-gray-500">
+                              {new Date(meeting.scheduledFor).toLocaleDateString()} • 
+                              {meeting.status.charAt(0).toUpperCase() + meeting.status.slice(1)}
+                            </p>
+                          </div>
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={() => window.open(`/admin/reports/${meeting.id}`, '_blank')}
+                              className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm"
+                            >
+                              View Full Report
+                            </button>
+                          </div>
+                        </div>
+                        <MeetingReports meetingId={meeting.id} meetingData={meeting} />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-12 bg-gray-50 rounded-lg">
+                    <ChartBarIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No Reports Available</h3>
+                    <p className="text-gray-500">Create and conduct meetings to generate reports</p>
+                  </div>
+                )}
+              </div>
+            )}
+            
             {activeTab === 'analytics' && (
               <div className="text-center py-12">
                 <ClockIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">Analytics Coming Soon</h3>
-                <p className="text-gray-500">Meeting analytics and reports will be available here.</p>
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Advanced Analytics Coming Soon</h3>
+                <p className="text-gray-500">Real-time meeting analytics and AI insights will be available here.</p>
               </div>
             )}
           </div>

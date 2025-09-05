@@ -24,6 +24,7 @@ const RoomPage = () => {
   const [showChat, setShowChat] = useState(false);
   const [showParticipants, setShowParticipants] = useState(false);
   const [isHost, setIsHost] = useState(false);
+  const [socketConnected, setSocketConnected] = useState(false);
   
   const { meetingMode } = useMeetingFeatures();
 
@@ -41,22 +42,41 @@ const RoomPage = () => {
       setIsHost(true);
     }
 
+    // Socket connection status
+    socket.on('connect', () => {
+      console.log('Socket connected:', socket.id);
+      setSocketConnected(true);
+    });
+
+    socket.on('disconnect', () => {
+      console.log('Socket disconnected');
+      setSocketConnected(false);
+    });
+
     // Socket event listeners
     socket.on('joined-room', (data) => {
-      console.log('Joined room successfully:', data);
+      console.log('✅ Joined room successfully:', data);
+      console.log('Participants received:', data.participants);
       setParticipants(data.participants || []);
       setMessages(data.chatHistory || []);
-      if (data.participants && data.participants.length === 1) {
+      if (data.participants && data.participants.length <= 1) {
         setIsHost(true);
+        console.log('🎯 Set as host - first to join');
       }
     });
 
     socket.on('user-joined', (data) => {
-      console.log('User joined:', data);
+      console.log('👥 New user joined:', data);
       setParticipants(prev => {
+        console.log('Current participants before adding:', prev);
         const existing = prev.find(p => p.id === data.userId || p.userId === data.userId);
-        if (existing) return prev;
-        return [...prev, data.userData || data];
+        if (existing) {
+          console.log('User already exists, not adding');
+          return prev;
+        }
+        const newParticipants = [...prev, data.userData || data];
+        console.log('Updated participants after adding:', newParticipants);
+        return newParticipants;
       });
     });
 
@@ -134,6 +154,8 @@ const RoomPage = () => {
         <div>
           <h1 className="text-lg font-semibold flex items-center space-x-2">
             <span>Room: {roomId}</span>
+            <div className={`w-2 h-2 rounded-full ${socketConnected ? 'bg-green-500' : 'bg-red-500'}`} 
+                 title={socketConnected ? 'Connected' : 'Disconnected'}></div>
             {meetingMode === 'webinar' && (
               <span className="bg-purple-600 px-2 py-1 rounded-full text-xs">Webinar</span>
             )}
@@ -141,7 +163,10 @@ const RoomPage = () => {
               <span className="bg-blue-600 px-2 py-1 rounded-full text-xs">Host</span>
             )}
           </h1>
-          <p className="text-sm text-gray-300">{participants.length + 1} participants</p>
+          <p className="text-sm text-gray-300">
+            {participants.length + 1} participants 
+            {!socketConnected && <span className="text-red-400 ml-2">(Connecting...)</span>}
+          </p>
         </div>
         <button
           onClick={leaveRoom}
