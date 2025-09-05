@@ -398,6 +398,63 @@ app.get('/api/meetings', (req, res) => {
   });
 });
 
+// Get active rooms (live sessions)
+app.get('/api/rooms/active', (req, res) => {
+  try {
+    const activeRooms = Array.from(rooms.values()).map(room => ({
+      roomId: room.id,
+      name: room.name,
+      type: room.type,
+      hostId: room.hostId,
+      participants: Array.from(room.participants.values()).map(p => ({
+        id: p.id,
+        userName: p.userName,
+        role: p.role,
+        isAudioMuted: p.isAudioMuted,
+        isVideoMuted: p.isVideoMuted
+      })),
+      participantCount: room.participants.size,
+      meetingId: room.meetingData?.id || null,
+      meetingTitle: room.meetingData?.title || null,
+      createdAt: room.createdAt
+    }));
+
+    res.json({ success: true, rooms: activeRooms });
+  } catch (error) {
+    console.error('Error fetching active rooms:', error);
+    res.status(500).json({ success: false, error: 'Failed to fetch active rooms' });
+  }
+});
+
+// End a room by roomId (admin action)
+app.post('/api/rooms/:roomId/end', (req, res) => {
+  try {
+    const { roomId } = req.params;
+    const room = rooms.get(roomId);
+    if (!room) {
+      return res.status(404).json({ success: false, error: 'Room not found' });
+    }
+
+    // If linked meeting exists, mark it ended as well
+    if (room.meetingData && meetings.has(room.meetingData.id)) {
+      const meeting = meetings.get(room.meetingData.id);
+      meeting.status = MEETING_STATUS.ENDED;
+      meeting.endedAt = new Date().toISOString();
+      meeting.updatedAt = new Date().toISOString();
+      meetings.set(meeting.id, meeting);
+    }
+
+    io.to(roomId).emit('room-ended', { roomId });
+    rooms.delete(roomId);
+    console.log(`🛑 Room force-ended by admin: ${roomId}`);
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Error ending room:', error);
+    res.status(500).json({ success: false, error: 'Failed to end room' });
+  }
+});
+
 // Create meeting
 app.post('/api/meetings', (req, res) => {
   try {
@@ -1033,6 +1090,26 @@ io.on('connection', (socket) => {
       
       console.log(`📹 Video ${isVideoEnabled ? 'enabled' : 'disabled'} for ${userId} in ${roomId}`);
     }
+  });
+
+  // Host ends the room via socket event
+  socket.on('end-room', (data) => {
+    const { roomId, hostId } = data || {};
+    const room = rooms.get(roomId);
+    if (!room) return;
+    // Only host can end the room
+    if (room.hostId && room.hostId !== hostId) return;
+    // End linked meeting if exists
+    if (room.meetingData && meetings.has(room.meetingData.id)) {
+      const meeting = meetings.get(room.meetingData.id);
+      meeting.status = MEETING_STATUS.ENDED;
+      meeting.endedAt = new Date().toISOString();
+      meeting.updatedAt = new Date().toISOString();
+      meetings.set(meeting.id, meeting);
+    }
+    io.to(roomId).emit('room-ended', { roomId });
+    rooms.delete(roomId);
+    console.log(`🛑 Room ended via socket: ${roomId}`);
   });
 
   // Leave room
