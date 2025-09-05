@@ -21,9 +21,17 @@ const HomePage = () => {
     <div className="min-h-screen bg-gradient-to-br from-blue-900 to-purple-900 flex items-center justify-center">
       <div className="bg-white rounded-lg shadow-xl p-8 max-w-md w-full mx-4">
         <div className="text-center mb-8">
-          <VideoCameraIcon className="h-16 w-16 text-blue-600 mx-auto mb-4" />
-          <h1 className="text-3xl font-bold text-gray-800 mb-2">Zoom Clone</h1>
-          <p className="text-gray-600">Connect with friends and colleagues</p>
+          <div className="relative mb-4">
+            <VideoCameraIcon className="h-16 w-16 text-blue-600 mx-auto" />
+            <div className="absolute -top-2 -right-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white text-xs px-2 py-1 rounded-full font-bold">
+              ALFA
+            </div>
+          </div>
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent mb-2">
+            ALFA MEET
+          </h1>
+          <p className="text-gray-600">Professional Video Conferencing Platform</p>
+          <p className="text-sm text-gray-500 mt-1">Connect • Collaborate • Create</p>
         </div>
 
         <div className="space-y-4">
