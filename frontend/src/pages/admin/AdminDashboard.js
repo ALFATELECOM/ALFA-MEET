@@ -5,10 +5,12 @@ import MeetingList from '../../components/admin/MeetingList';
 import CreateMeetingModal from '../../components/admin/CreateMeetingModal';
 import MeetingStats from '../../components/admin/MeetingStats';
 import AdvancedMeetingControls from '../../components/admin/AdvancedMeetingControls';
+import EnhancedMeetingControls from '../../components/admin/EnhancedMeetingControls';
 import MeetingReports from '../../components/admin/MeetingReports';
 import UserManagementPanel from '../../components/admin/UserManagementPanel';
 import AdvancedAnalytics from '../../components/admin/AdvancedAnalytics';
 import MeetingImageUpload from '../../components/admin/MeetingImageUpload';
+import RoleManagement from '../../components/admin/RoleManagement';
 import {
   PlusIcon,
   CalendarIcon,
@@ -34,9 +36,10 @@ const AdminDashboard = () => {
 
   const tabs = [
     { id: 'overview', name: 'Overview', icon: CalendarIcon },
-    { id: 'meetings', name: 'Meetings', icon: UsersIcon },
+    { id: 'meetings', name: 'Meetings', icon: ComputerDesktopIcon },
     { id: 'controls', name: 'Live Controls', icon: CogIcon },
     { id: 'users', name: 'User Management', icon: UsersIcon },
+    { id: 'roles', name: 'Role Management', icon: BoltIcon },
     { id: 'reports', name: 'Reports', icon: ChartBarIcon },
     { id: 'analytics', name: 'AI Analytics', icon: BoltIcon },
     { id: 'settings', name: 'Settings', icon: ClockIcon }
@@ -47,31 +50,41 @@ const AdminDashboard = () => {
   const totalMeetings = meetings.length;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gray-100">
+      {/* Professional Header */}
+      <div className="bg-white shadow-lg border-b-2 border-blue-600">
+        <div className="max-w-7xl mx-auto px-6 lg:px-8">
           <div className="flex justify-between items-center py-4">
-            <div className="flex items-center space-x-4">
-              <h1 className="text-2xl font-bold text-gray-900">Admin Dashboard</h1>
-              <span className="text-sm text-gray-500">
-                Welcome, {adminUser?.name}
-              </span>
+            <div className="flex items-center space-x-6">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
+                  <ComputerDesktopIcon className="h-6 w-6 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-2xl font-bold text-gray-900">ALFA MEET</h1>
+                  <p className="text-sm text-gray-600">Professional Video Conferencing</p>
+                </div>
+              </div>
+              <div className="hidden md:block h-8 w-px bg-gray-300"></div>
+              <div className="hidden md:block">
+                <p className="text-sm text-gray-500">Welcome back,</p>
+                <p className="font-semibold text-gray-900">{adminUser?.name || 'Admin User'}</p>
+              </div>
             </div>
             <div className="flex items-center space-x-4">
               <button
                 onClick={() => setShowCreateModal(true)}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition duration-200"
+                className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-6 py-3 rounded-lg flex items-center space-x-2 transition duration-200 shadow-lg"
               >
                 <PlusIcon className="h-5 w-5" />
-                <span>Create Meeting</span>
+                <span className="font-semibold">Schedule a Meeting</span>
               </button>
               <button
                 onClick={handleLogout}
-                className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 transition duration-200"
+                className="text-gray-600 hover:text-gray-900 p-2 rounded-lg hover:bg-gray-100 transition duration-200"
+                title="Logout"
               >
-                <ArrowRightOnRectangleIcon className="h-5 w-5" />
-                <span>Logout</span>
+                <ArrowRightOnRectangleIcon className="h-6 w-6" />
               </button>
             </div>
           </div>
@@ -182,13 +195,27 @@ const AdminDashboard = () => {
                 {meetings.filter(m => m.status === 'active').length > 0 ? (
                   <div className="space-y-6">
                     {meetings.filter(m => m.status === 'active').map(meeting => (
-                      <AdvancedMeetingControls 
-                        key={meeting.id} 
+                      <EnhancedMeetingControls
+                        key={meeting.id}
                         meeting={meeting}
-                        onUpdate={(updates) => {
-                          // Handle meeting updates
-                          console.log('Meeting updated:', updates);
-                        }}
+                        participants={[
+                          // Mock participants for demo
+                          { name: 'John Smith', isAudioMuted: false, isVideoMuted: false, isHost: true, handRaised: false },
+                          { name: 'Sarah Johnson', isAudioMuted: true, isVideoMuted: false, isCoHost: true, handRaised: true },
+                          { name: 'Mike Wilson', isAudioMuted: false, isVideoMuted: true, handRaised: false, isScreenSharing: true },
+                          { name: 'Lisa Chen', isAudioMuted: true, isVideoMuted: true, handRaised: false }
+                        ]}
+                        onStartMeeting={() => console.log('Start meeting:', meeting.id)}
+                        onEndMeeting={() => console.log('End meeting:', meeting.id)}
+                        onMuteAll={() => console.log('Mute all:', meeting.id)}
+                        onUnmuteAll={() => console.log('Unmute all:', meeting.id)}
+                        onLockMeeting={() => console.log('Lock meeting:', meeting.id)}
+                        onUnlockMeeting={() => console.log('Unlock meeting:', meeting.id)}
+                        onToggleRecording={() => console.log('Toggle recording:', meeting.id)}
+                        onToggleWaitingRoom={() => console.log('Toggle waiting room:', meeting.id)}
+                        onToggleChat={() => console.log('Toggle chat:', meeting.id)}
+                        onToggleReactions={() => console.log('Toggle reactions:', meeting.id)}
+                        onGenerateReport={() => console.log('Generate report:', meeting.id)}
                       />
                     ))}
                   </div>
@@ -280,6 +307,12 @@ const AdminDashboard = () => {
                     <p className="text-gray-500">User management tools will appear when meetings are active</p>
                   </div>
                 )}
+              </div>
+            )}
+
+            {activeTab === 'roles' && (
+              <div>
+                <RoleManagement />
               </div>
             )}
 
