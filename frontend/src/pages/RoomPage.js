@@ -2,10 +2,13 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { useSocket } from '../context/SocketContext';
 import { useMedia } from '../context/MediaContext';
+import { useMeetingFeatures } from '../context/MeetingFeaturesContext';
 import VideoGrid from '../components/VideoGrid';
-import ControlBar from '../components/ControlBar';
+import EnhancedControlBar from '../components/EnhancedControlBar';
 import Chat from '../components/Chat';
 import ParticipantsList from '../components/ParticipantsList';
+import FloatingReactions from '../components/FloatingReactions';
+import RaiseHandIndicator from '../components/RaiseHandIndicator';
 
 const RoomPage = () => {
   const { roomId } = useParams();
@@ -15,10 +18,14 @@ const RoomPage = () => {
   const { startCamera } = useMedia();
   
   const [userName] = useState(location.state?.userName || 'Anonymous');
+  const [userId] = useState(`user-${Date.now()}-${Math.random()}`);
   const [participants, setParticipants] = useState([]);
   const [messages, setMessages] = useState([]);
   const [showChat, setShowChat] = useState(false);
   const [showParticipants, setShowParticipants] = useState(false);
+  const [isHost, setIsHost] = useState(false);
+  
+  const { meetingMode } = useMeetingFeatures();
 
   useEffect(() => {
     if (!socket) return;
@@ -27,7 +34,12 @@ const RoomPage = () => {
     startCamera().catch(console.error);
 
     // Join room
-    socket.emit('join-room', { roomId, userName });
+    socket.emit('join-room', { roomId, userName, userId });
+    
+    // Check if user is host (first to join)
+    if (participants.length === 0) {
+      setIsHost(true);
+    }
 
     // Socket event listeners
     socket.on('user-joined', (data) => {
@@ -61,11 +73,18 @@ const RoomPage = () => {
 
   const sendMessage = (message) => {
     if (socket && message.trim()) {
-      socket.emit('send-message', {
+      const messageData = {
         roomId,
         message: message.trim(),
-        userName
-      });
+        userName,
+        userId,
+        timestamp: new Date().toISOString()
+      };
+      
+      socket.emit('send-message', messageData);
+      
+      // Add message to local state immediately for better UX
+      setMessages(prev => [...prev, messageData]);
     }
   };
 
@@ -81,8 +100,16 @@ const RoomPage = () => {
       {/* Header */}
       <div className="bg-gray-800 text-white p-4 flex justify-between items-center">
         <div>
-          <h1 className="text-lg font-semibold">Room: {roomId}</h1>
-          <p className="text-sm text-gray-300">{participants.length} participants</p>
+          <h1 className="text-lg font-semibold flex items-center space-x-2">
+            <span>Room: {roomId}</span>
+            {meetingMode === 'webinar' && (
+              <span className="bg-purple-600 px-2 py-1 rounded-full text-xs">Webinar</span>
+            )}
+            {isHost && (
+              <span className="bg-blue-600 px-2 py-1 rounded-full text-xs">Host</span>
+            )}
+          </h1>
+          <p className="text-sm text-gray-300">{participants.length + 1} participants</p>
         </div>
         <button
           onClick={leaveRoom}
@@ -98,12 +125,21 @@ const RoomPage = () => {
         <div className="flex-1 relative">
           <VideoGrid participants={participants} />
           
+          {/* Floating Reactions */}
+          <FloatingReactions />
+          
+          {/* Raise Hand Indicator */}
+          <RaiseHandIndicator isHost={isHost} />
+          
           {/* Control Bar */}
           <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2">
-            <ControlBar
+            <EnhancedControlBar
               onToggleChat={() => setShowChat(!showChat)}
               onToggleParticipants={() => setShowParticipants(!showParticipants)}
               onLeaveRoom={leaveRoom}
+              currentUserId={userId}
+              currentUserName={userName}
+              isHost={isHost}
             />
           </div>
         </div>
@@ -115,6 +151,9 @@ const RoomPage = () => {
               messages={messages}
               onSendMessage={sendMessage}
               onClose={() => setShowChat(false)}
+              currentUserId={userId}
+              currentUserName={userName}
+              roomId={roomId}
             />
           </div>
         )}
