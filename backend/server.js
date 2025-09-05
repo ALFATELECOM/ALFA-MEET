@@ -39,6 +39,9 @@ const users = new Map();
 const userRewards = new Map();
 const activeReactions = new Map();
 const raisedHands = new Map();
+const blockedUsers = new Map();
+const suspendedUsers = new Map();
+const coHosts = new Map();
 
 // Room types
 const ROOM_TYPES = {
@@ -69,7 +72,15 @@ class Room {
       waitingRoom: false,
       allowReactions: true,
       allowRaiseHand: true,
-      rewardsEnabled: true
+      rewardsEnabled: true,
+      maxParticipants: 10000,
+      requireAdminStart: false,
+      allowCoHosts: true,
+      userManagement: {
+        allowBlock: true,
+        allowSuspend: true,
+        allowKick: true
+      }
     };
     this.createdAt = new Date();
     this.isRecording = false;
@@ -81,6 +92,18 @@ class Room {
     this.breakoutRooms = [];
     this.meetingNotes = '';
     this.whiteboardData = { drawings: [], isActive: false };
+    this.coHosts = new Set();
+    this.blockedUsers = new Set();
+    this.suspendedUsers = new Set();
+    this.meetingImage = null;
+    this.participantAnalytics = new Map();
+    this.aiMode = {
+      enabled: false,
+      transcription: false,
+      summary: false,
+      moderation: false,
+      insights: false
+    };
   }
 
   addParticipant(userId, socketId, userData) {
@@ -146,6 +169,57 @@ function getLeaderboard(limit = 10) {
   return Array.from(userRewards.values())
     .sort((a, b) => b.points - a.points)
     .slice(0, limit);
+}
+
+function calculateEngagementScore(actions) {
+  if (!actions || actions.length === 0) return 0;
+  
+  const weights = {
+    'message': 10,
+    'reaction': 5,
+    'hand-raise': 15,
+    'screen-share': 20,
+    'poll-vote': 8,
+    'camera-on': 3,
+    'mic-on': 3,
+    'join': 5,
+    'stay-duration': 1 // per minute
+  };
+  
+  let score = 0;
+  actions.forEach(action => {
+    score += weights[action.action] || 1;
+  });
+  
+  return Math.min(Math.round(score / 10), 100); // Cap at 100
+}
+
+function generateMeetingReport(roomId) {
+  const room = rooms.get(roomId);
+  if (!room) return null;
+  
+  const participants = Array.from(room.participants.values()).map(p => {
+    const analytics = room.participantAnalytics.get(p.id) || {};
+    return {
+      ...p,
+      analytics,
+      joinDuration: new Date() - new Date(p.joinedAt),
+      pointsEarned: getUserRewards(p.id).points
+    };
+  });
+  
+  return {
+    roomId,
+    roomName: room.name,
+    type: room.type,
+    status: room.isRecording ? 'active' : 'ended',
+    participants,
+    totalMessages: room.chatHistory.length,
+    totalReactions: room.reactionHistory.length,
+    aiModeUsed: room.aiMode.enabled,
+    recordingDuration: room.recordingStatus === 'recording' ? 'ongoing' : 'completed',
+    generatedAt: new Date().toISOString()
+  };
 }
 
 // API Routes
@@ -247,11 +321,13 @@ io.on('connection', (socket) => {
 
   // Join room (enhanced)
   socket.on('join-room', ({ roomId, userId, userName, userData }) => {
-    const room = rooms.get(roomId);
+    let room = rooms.get(roomId);
     
+    // Auto-create room if it doesn't exist
     if (!room) {
-      socket.emit('error', { message: 'Room not found' });
-      return;
+      console.log(`Creating new room: ${roomId}`);
+      room = new Room(roomId, `Room ${roomId}`, ROOM_TYPES.MEETING, userId);
+      rooms.set(roomId, room);
     }
 
     // Add user to room
@@ -614,9 +690,174 @@ io.on('connection', (socket) => {
   // Meeting notes
   socket.on('update-meeting-notes', ({ roomId, hostId, notes }) => {
     const room = rooms.get(roomId);
-    if (room && room.hostId === hostId) {
+    if (room && (room.hostId === hostId || room.coHosts.has(hostId))) {
       room.meetingNotes = notes;
       socket.to(roomId).emit('meeting-notes-updated', { notes, timestamp: new Date() });
+    }
+  });
+
+  // User Management - Block User
+  socket.on('block-user', ({ roomId, targetUserId, adminId, reason }) => {
+    const room = rooms.get(roomId);
+    if (room && (room.hostId === adminId || room.coHosts.has(adminId))) {
+      room.blockedUsers.add(targetUserId);
+      blockedUsers.set(targetUserId, { 
+        blockedBy: adminId, 
+        reason, 
+        timestamp: new Date(),
+        roomId 
+      });
+      
+      const targetParticipant = room.participants.get(targetUserId);
+      if (targetParticipant) {
+        io.to(targetParticipant.socketId).emit('user-blocked', { reason });
+        room.removeParticipant(targetUserId);
+        socket.to(roomId).emit('user-removed', { userId: targetUserId, reason: 'blocked' });
+      }
+      
+      console.log(`User ${targetUserId} blocked from room ${roomId} by ${adminId}`);
+    }
+  });
+
+  // User Management - Suspend User
+  socket.on('suspend-user', ({ roomId, targetUserId, adminId, duration, reason }) => {
+    const room = rooms.get(roomId);
+    if (room && (room.hostId === adminId || room.coHosts.has(adminId))) {
+      const suspendUntil = new Date(Date.now() + duration * 60 * 1000); // duration in minutes
+      
+      room.suspendedUsers.add(targetUserId);
+      suspendedUsers.set(targetUserId, { 
+        suspendedBy: adminId, 
+        reason, 
+        suspendedUntil,
+        timestamp: new Date(),
+        roomId 
+      });
+      
+      const targetParticipant = room.participants.get(targetUserId);
+      if (targetParticipant) {
+        io.to(targetParticipant.socketId).emit('user-suspended', { 
+          reason, 
+          duration, 
+          suspendedUntil 
+        });
+        
+        // Mute and disable video for suspended user
+        room.updateParticipant(targetUserId, { 
+          isAudioMuted: true, 
+          isVideoMuted: true, 
+          isSuspended: true 
+        });
+        
+        socket.to(roomId).emit('user-suspended-notification', { 
+          userId: targetUserId, 
+          reason, 
+          duration 
+        });
+      }
+      
+      // Auto-unsuspend after duration
+      setTimeout(() => {
+        if (room.suspendedUsers.has(targetUserId)) {
+          room.suspendedUsers.delete(targetUserId);
+          suspendedUsers.delete(targetUserId);
+          
+          if (room.participants.has(targetUserId)) {
+            room.updateParticipant(targetUserId, { isSuspended: false });
+            io.to(roomId).emit('user-unsuspended', { userId: targetUserId });
+          }
+        }
+      }, duration * 60 * 1000);
+      
+      console.log(`User ${targetUserId} suspended from room ${roomId} for ${duration} minutes`);
+    }
+  });
+
+  // Add Co-Host
+  socket.on('add-cohost', ({ roomId, targetUserId, hostId }) => {
+    const room = rooms.get(roomId);
+    if (room && room.hostId === hostId) {
+      room.coHosts.add(targetUserId);
+      room.updateParticipant(targetUserId, { role: 'co-host' });
+      
+      const targetParticipant = room.participants.get(targetUserId);
+      if (targetParticipant) {
+        io.to(targetParticipant.socketId).emit('promoted-to-cohost');
+        socket.to(roomId).emit('cohost-added', { 
+          userId: targetUserId, 
+          userName: targetParticipant.userName 
+        });
+      }
+      
+      console.log(`User ${targetUserId} promoted to co-host in room ${roomId}`);
+    }
+  });
+
+  // Remove Co-Host
+  socket.on('remove-cohost', ({ roomId, targetUserId, hostId }) => {
+    const room = rooms.get(roomId);
+    if (room && room.hostId === hostId) {
+      room.coHosts.delete(targetUserId);
+      room.updateParticipant(targetUserId, { role: USER_ROLES.PARTICIPANT });
+      
+      const targetParticipant = room.participants.get(targetUserId);
+      if (targetParticipant) {
+        io.to(targetParticipant.socketId).emit('cohost-removed');
+        socket.to(roomId).emit('cohost-removed-notification', { 
+          userId: targetUserId, 
+          userName: targetParticipant.userName 
+        });
+      }
+      
+      console.log(`User ${targetUserId} removed from co-host in room ${roomId}`);
+    }
+  });
+
+  // AI Mode Controls
+  socket.on('toggle-ai-mode', ({ roomId, hostId, aiFeatures }) => {
+    const room = rooms.get(roomId);
+    if (room && (room.hostId === hostId || room.coHosts.has(hostId))) {
+      room.aiMode = { ...room.aiMode, ...aiFeatures };
+      io.to(roomId).emit('ai-mode-updated', { aiMode: room.aiMode, timestamp: new Date() });
+      
+      console.log(`AI mode updated in room ${roomId}:`, aiFeatures);
+    }
+  });
+
+  // Meeting Image Upload
+  socket.on('update-meeting-image', ({ roomId, hostId, imageData }) => {
+    const room = rooms.get(roomId);
+    if (room && (room.hostId === hostId || room.coHosts.has(hostId))) {
+      room.meetingImage = imageData;
+      io.to(roomId).emit('meeting-image-updated', { imageData, timestamp: new Date() });
+    }
+  });
+
+  // Advanced Analytics Tracking
+  socket.on('track-participant-action', ({ roomId, userId, action, data }) => {
+    const room = rooms.get(roomId);
+    if (room) {
+      if (!room.participantAnalytics.has(userId)) {
+        room.participantAnalytics.set(userId, {
+          userId,
+          actions: [],
+          totalActions: 0,
+          engagementScore: 0,
+          lastActive: new Date()
+        });
+      }
+      
+      const analytics = room.participantAnalytics.get(userId);
+      analytics.actions.push({
+        action,
+        data,
+        timestamp: new Date()
+      });
+      analytics.totalActions++;
+      analytics.lastActive = new Date();
+      
+      // Calculate engagement score
+      analytics.engagementScore = calculateEngagementScore(analytics.actions);
     }
   });
 
