@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { useSocket } from '../context/SocketContext';
 import { useMedia } from '../context/MediaContext';
+import WebRTCVideoGrid from './WebRTCVideoGrid';
 import {
   MicrophoneIcon,
   VideoCameraIcon,
@@ -30,7 +31,8 @@ const MobileOptimizedRoom = () => {
     isAudioEnabled, 
     toggleVideo, 
     toggleAudio, 
-    startCamera 
+    startCamera,
+    setRoomContext 
   } = useMedia();
 
   const [userName] = useState(location.state?.userName || 'Mobile User');
@@ -47,6 +49,7 @@ const MobileOptimizedRoom = () => {
   const [showParticipants, setShowParticipants] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [orientation, setOrientation] = useState('portrait');
+  const [showAdminMenu, setShowAdminMenu] = useState(false);
 
   // Handle device orientation
   useEffect(() => {
@@ -69,6 +72,8 @@ const MobileOptimizedRoom = () => {
     if (!socket) return;
 
     startCamera().catch(console.error);
+    // Provide room context for WebRTC signaling
+    setRoomContext(roomId, userId);
     
     socket.emit('join-room', { 
       roomId, 
@@ -82,6 +87,16 @@ const MobileOptimizedRoom = () => {
       console.log('Joined room:', data);
       setParticipants(data.participants || []);
       setMessages(data.chatHistory || []);
+      // Determine host role based on server response
+      if (data.participants && data.participants.length > 0) {
+        const me = data.participants.find(p => p.id === userId || p.userId === userId);
+        if (me && (me.role === 'host' || me.isHost)) {
+          setIsHost(true);
+        } else if (data.participants.length === 1) {
+          // First user becomes host
+          setIsHost(true);
+        }
+      }
     });
 
     socket.on('user-joined', (data) => {
@@ -142,6 +157,13 @@ const MobileOptimizedRoom = () => {
     setIsFullscreen(!isFullscreen);
   };
 
+  const endMeetingForAll = () => {
+    if (socket && isHost) {
+      socket.emit('end-room', { roomId, hostId: userId });
+    }
+    navigate('/');
+  };
+
   const getVideoGridClass = () => {
     const totalParticipants = participants.length + 1;
     if (orientation === 'landscape') {
@@ -163,6 +185,17 @@ const MobileOptimizedRoom = () => {
       }`}
       onClick={() => setShowControls(true)}
     >
+      {/* Inline admin menu for quick actions */}
+      {showAdminMenu && isHost && (
+        <div className="absolute top-12 right-2 bg-white rounded-lg shadow-lg border z-50">
+          <button
+            onClick={endMeetingForAll}
+            className="block w-full text-left px-4 py-2 text-red-600 hover:bg-red-50"
+          >
+            End Meeting For All
+          </button>
+        </div>
+      )}
       {/* Header - Mobile Optimized */}
       <div className={`bg-gray-800 text-white px-4 py-2 flex justify-between items-center transition-transform duration-300 ${
         !showControls && !showChat && !showParticipants ? '-translate-y-full' : 'translate-y-0'
@@ -180,6 +213,22 @@ const MobileOptimizedRoom = () => {
         
         <div className="flex items-center space-x-2">
           <span className="text-xs">{participants.length + 1}</span>
+          {isHost && (
+            <>
+              <button
+                onClick={() => setShowAdminMenu(!showAdminMenu)}
+                className="px-3 py-1 bg-purple-600 hover:bg-purple-700 rounded-lg text-xs"
+              >
+                Admin Controls
+              </button>
+              <button
+                onClick={endMeetingForAll}
+                className="px-3 py-1 bg-red-600 hover:bg-red-700 rounded-lg text-xs"
+              >
+                End Meeting
+              </button>
+            </>
+          )}
           <button
             onClick={toggleFullscreen}
             className="p-2 hover:bg-gray-700 rounded-lg transition duration-200"
@@ -195,56 +244,12 @@ const MobileOptimizedRoom = () => {
       {/* Video Grid - Mobile Optimized */}
       <div className="flex-1 relative">
         <div className={`grid ${getVideoGridClass()} gap-1 h-full p-2`}>
-          {/* Local Video */}
-          <div className="relative bg-gray-800 rounded-lg overflow-hidden touch-manipulation">
-            <video
-              ref={localVideoRef}
-              autoPlay
-              muted
-              playsInline
-              className={`w-full h-full object-cover ${!isVideoEnabled ? 'hidden' : ''}`}
-            />
-            {!isVideoEnabled && (
-              <div className="absolute inset-0 bg-gray-700 flex items-center justify-center">
-                <div className="text-center">
-                  <div className="w-12 h-12 bg-gray-600 rounded-full flex items-center justify-center mx-auto mb-2">
-                    <span className="text-white font-semibold">{userName.charAt(0)}</span>
-                  </div>
-                  <span className="text-white text-xs">Camera Off</span>
-                </div>
-              </div>
-            )}
-            <div className="absolute bottom-1 left-1 bg-black bg-opacity-50 text-white px-2 py-1 rounded text-xs">
-              You
-            </div>
-            <div className="absolute top-1 right-1 flex space-x-1">
-              <div className={`w-2 h-2 rounded-full ${isAudioEnabled ? 'bg-green-500' : 'bg-red-500'}`}></div>
-              <div className={`w-2 h-2 rounded-full ${isVideoEnabled ? 'bg-green-500' : 'bg-red-500'}`}></div>
-            </div>
-          </div>
-
-          {/* Remote Videos */}
-          {participants.map((participant, index) => (
-            <div key={participant.id || index} className="relative bg-gray-800 rounded-lg overflow-hidden">
-              <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-700 to-gray-800">
-                <div className="text-center">
-                  <div className="w-12 h-12 bg-gray-600 rounded-full flex items-center justify-center mx-auto mb-2">
-                    <span className="text-white font-semibold">
-                      {(participant.userName || participant.name || 'U').charAt(0)}
-                    </span>
-                  </div>
-                  <span className="text-white text-xs">Camera Off</span>
-                </div>
-              </div>
-              <div className="absolute bottom-1 left-1 bg-black bg-opacity-50 text-white px-2 py-1 rounded text-xs">
-                {participant.userName || participant.name}
-              </div>
-              <div className="absolute top-1 right-1 flex space-x-1">
-                <div className={`w-2 h-2 rounded-full ${!participant.isAudioMuted ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                <div className={`w-2 h-2 rounded-full ${!participant.isVideoMuted ? 'bg-green-500' : 'bg-red-500'}`}></div>
-              </div>
-            </div>
-          ))}
+          <WebRTCVideoGrid 
+            participants={participants}
+            roomId={roomId}
+            userId={userId}
+            userName={userName}
+          />
         </div>
 
         {/* Mobile Control Bar */}
