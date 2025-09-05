@@ -1,7 +1,7 @@
 {
-  "name": "zoom-clone",
+  "name": "alfa-meet",
   "version": "1.0.0",
-  "description": "Video conferencing platform with meeting and webinar modes",
+  "description": "ALFA MEET - Professional Video Conferencing Platform",
   "scripts": {
     "dev": "concurrently \"npm run server\" \"npm run client\"",
     "server": "cd backend && npm run dev",
