@@ -73,3 +73,4 @@ export const debugSocketEvents = (socket) => {
   
   console.log('🐛 Debug listeners attached for events:', events);
 };
+
