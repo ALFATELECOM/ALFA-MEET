@@ -33,9 +33,12 @@ const io = socketIo(server, {
   cors: corsOptions
 });
 
-// Store active rooms and users
+// Store active rooms, users, rewards, and reactions
 const rooms = new Map();
 const users = new Map();
+const userRewards = new Map();
+const activeReactions = new Map();
+const raisedHands = new Map();
 
 // Room types
 const ROOM_TYPES = {
@@ -63,11 +66,21 @@ class Room {
       allowChat: true,
       allowRecording: true,
       muteOnEntry: type === ROOM_TYPES.WEBINAR,
-      waitingRoom: false
+      waitingRoom: false,
+      allowReactions: true,
+      allowRaiseHand: true,
+      rewardsEnabled: true
     };
     this.createdAt = new Date();
     this.isRecording = false;
+    this.recordingStatus = 'stopped'; // 'recording', 'paused', 'stopped'
     this.chatHistory = [];
+    this.reactionHistory = [];
+    this.polls = [];
+    this.activePoll = null;
+    this.breakoutRooms = [];
+    this.meetingNotes = '';
+    this.whiteboardData = { drawings: [], isActive: false };
   }
 
   addParticipant(userId, socketId, userData) {
@@ -100,6 +113,39 @@ class Room {
       this.participants.set(userId, { ...participant, ...updates });
     }
   }
+}
+
+// Helper functions
+function awardPoints(userId, userName, points, reason, roomId) {
+  if (!userRewards.has(userId)) {
+    userRewards.set(userId, {
+      userId,
+      userName,
+      points: 0,
+      history: []
+    });
+  }
+  
+  const userReward = userRewards.get(userId);
+  userReward.points += points;
+  userReward.history.push({
+    points,
+    reason,
+    roomId,
+    timestamp: new Date()
+  });
+  
+  return userReward;
+}
+
+function getUserRewards(userId) {
+  return userRewards.get(userId) || { userId, points: 0, history: [] };
+}
+
+function getLeaderboard(limit = 10) {
+  return Array.from(userRewards.values())
+    .sort((a, b) => b.points - a.points)
+    .slice(0, limit);
 }
 
 // API Routes
@@ -142,7 +188,56 @@ app.get('/api/rooms/:roomId', (req, res) => {
     hostId: room.hostId,
     participantCount: room.participants.size,
     settings: room.settings,
-    createdAt: room.createdAt
+    createdAt: room.createdAt,
+    recordingStatus: room.recordingStatus,
+    activePoll: room.activePoll,
+    reactionCount: room.reactionHistory.length
+  });
+});
+
+// Rewards API endpoints
+app.get('/api/rewards/leaderboard', (req, res) => {
+  const limit = parseInt(req.query.limit) || 10;
+  const leaderboard = getLeaderboard(limit);
+  res.json(leaderboard);
+});
+
+app.get('/api/rewards/user/:userId', (req, res) => {
+  const { userId } = req.params;
+  const userReward = getUserRewards(userId);
+  res.json(userReward);
+});
+
+// Room statistics
+app.get('/api/rooms/:roomId/stats', (req, res) => {
+  const { roomId } = req.params;
+  const room = rooms.get(roomId);
+  
+  if (!room) {
+    return res.status(404).json({ error: 'Room not found' });
+  }
+
+  const roomHands = raisedHands.get(roomId) || new Map();
+  
+  res.json({
+    participantCount: room.participants.size,
+    messageCount: room.chatHistory.length,
+    reactionCount: room.reactionHistory.length,
+    raisedHandsCount: roomHands.size,
+    pollCount: room.polls.length,
+    activePoll: room.activePoll,
+    recordingStatus: room.recordingStatus,
+    isRecording: room.isRecording,
+    meetingDuration: Math.floor((new Date() - room.createdAt) / 1000 / 60), // in minutes
+    participants: room.getParticipants().map(p => ({
+      id: p.id,
+      userName: p.userName || p.name,
+      role: p.role,
+      joinedAt: p.joinedAt,
+      isAudioMuted: p.isAudioMuted,
+      isVideoMuted: p.isVideoMuted,
+      isScreenSharing: p.isScreenSharing
+    }))
   });
 });
 
@@ -150,8 +245,8 @@ app.get('/api/rooms/:roomId', (req, res) => {
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
 
-  // Join room
-  socket.on('join-room', ({ roomId, userId, userData }) => {
+  // Join room (enhanced)
+  socket.on('join-room', ({ roomId, userId, userName, userData }) => {
     const room = rooms.get(roomId);
     
     if (!room) {
@@ -160,11 +255,15 @@ io.on('connection', (socket) => {
     }
 
     // Add user to room
-    room.addParticipant(userId, socket.id, userData);
-    users.set(socket.id, { userId, roomId, userData });
+    const participantData = { userName, ...userData };
+    room.addParticipant(userId, socket.id, participantData);
+    users.set(socket.id, { userId, roomId, userData: participantData });
     
     // Join socket room
     socket.join(roomId);
+
+    // Get current raised hands for this room
+    const currentHands = raisedHands.get(roomId) ? Array.from(raisedHands.get(roomId).values()) : [];
 
     // Notify user they joined successfully
     socket.emit('joined-room', {
@@ -173,7 +272,13 @@ io.on('connection', (socket) => {
       roomType: room.type,
       participants: room.getParticipants(),
       settings: room.settings,
-      chatHistory: room.chatHistory
+      chatHistory: room.chatHistory,
+      reactionHistory: room.reactionHistory.slice(-50), // Last 50 reactions
+      raisedHands: currentHands,
+      activePoll: room.activePoll,
+      recordingStatus: room.recordingStatus,
+      meetingNotes: room.meetingNotes,
+      userRewards: getUserRewards(userId)
     });
 
     // Notify other participants
@@ -182,7 +287,7 @@ io.on('connection', (socket) => {
       userData: room.participants.get(userId)
     });
 
-    console.log(`User ${userId} joined room ${roomId}`);
+    console.log(`User ${userId} (${userName}) joined room ${roomId}`);
   });
 
   // Handle WebRTC signaling
@@ -231,8 +336,8 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Chat functionality
-  socket.on('send-message', ({ roomId, userId, message, userName }) => {
+  // Chat functionality with rewards
+  socket.on('send-message', ({ roomId, userId, message, userName, timestamp }) => {
     const room = rooms.get(roomId);
     if (room && room.settings.allowChat) {
       const chatMessage = {
@@ -240,11 +345,35 @@ io.on('connection', (socket) => {
         userId,
         userName,
         message,
-        timestamp: new Date()
+        timestamp: timestamp || new Date()
       };
       
       room.chatHistory.push(chatMessage);
+      
+      // Award points for sending message
+      if (room.settings.rewardsEnabled) {
+        awardPoints(userId, userName, 20, 'Chat message', roomId);
+      }
+      
       io.to(roomId).emit('new-message', chatMessage);
+    }
+  });
+
+  // Reward system
+  socket.on('award-points', ({ roomId, userId, userName, points, reason, awardedBy }) => {
+    const room = rooms.get(roomId);
+    if (room && room.settings.rewardsEnabled) {
+      awardPoints(userId, userName, points, reason, roomId);
+      
+      // Notify room about the reward
+      io.to(roomId).emit('points-awarded', {
+        userId,
+        userName,
+        points,
+        reason,
+        awardedBy,
+        timestamp: new Date()
+      });
     }
   });
 
@@ -273,12 +402,104 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Recording controls
+  // Reactions system
+  socket.on('send-reaction', ({ roomId, userId, userName, reactionId, emoji }) => {
+    const room = rooms.get(roomId);
+    if (room && room.settings.allowReactions) {
+      const reaction = {
+        id: uuidv4(),
+        userId,
+        userName,
+        reactionId,
+        emoji,
+        timestamp: new Date(),
+        x: Math.random() * 80 + 10,
+        y: Math.random() * 80 + 10
+      };
+      
+      room.reactionHistory.push(reaction);
+      io.to(roomId).emit('reaction-sent', reaction);
+    }
+  });
+
+  // Raise hand functionality
+  socket.on('raise-hand', ({ roomId, userId, userName }) => {
+    const room = rooms.get(roomId);
+    if (room && room.settings.allowRaiseHand) {
+      const handRaise = {
+        id: uuidv4(),
+        userId,
+        userName,
+        timestamp: new Date(),
+        acknowledged: false
+      };
+      
+      if (!raisedHands.has(roomId)) {
+        raisedHands.set(roomId, new Map());
+      }
+      
+      raisedHands.get(roomId).set(userId, handRaise);
+      io.to(roomId).emit('hand-raised', handRaise);
+    }
+  });
+
+  socket.on('lower-hand', ({ roomId, userId }) => {
+    const room = rooms.get(roomId);
+    if (room) {
+      if (raisedHands.has(roomId)) {
+        raisedHands.get(roomId).delete(userId);
+      }
+      io.to(roomId).emit('hand-lowered', { userId });
+    }
+  });
+
+  socket.on('acknowledge-hand', ({ roomId, handId, hostId }) => {
+    const room = rooms.get(roomId);
+    if (room && room.hostId === hostId) {
+      if (raisedHands.has(roomId)) {
+        const roomHands = raisedHands.get(roomId);
+        for (let [userId, hand] of roomHands) {
+          if (hand.id === handId) {
+            hand.acknowledged = true;
+            io.to(roomId).emit('hand-acknowledged', { handId, userId });
+            break;
+          }
+        }
+      }
+    }
+  });
+
+  socket.on('clear-all-hands', ({ roomId, hostId }) => {
+    const room = rooms.get(roomId);
+    if (room && room.hostId === hostId) {
+      raisedHands.set(roomId, new Map());
+      io.to(roomId).emit('all-hands-cleared');
+    }
+  });
+
+  // Recording controls (enhanced)
   socket.on('start-recording', ({ roomId, hostId }) => {
     const room = rooms.get(roomId);
     if (room && room.hostId === hostId && room.settings.allowRecording) {
       room.isRecording = true;
-      io.to(roomId).emit('recording-started');
+      room.recordingStatus = 'recording';
+      io.to(roomId).emit('recording-started', { timestamp: new Date() });
+    }
+  });
+
+  socket.on('pause-recording', ({ roomId, hostId }) => {
+    const room = rooms.get(roomId);
+    if (room && room.hostId === hostId && room.isRecording) {
+      room.recordingStatus = 'paused';
+      io.to(roomId).emit('recording-paused', { timestamp: new Date() });
+    }
+  });
+
+  socket.on('resume-recording', ({ roomId, hostId }) => {
+    const room = rooms.get(roomId);
+    if (room && room.hostId === hostId && room.recordingStatus === 'paused') {
+      room.recordingStatus = 'recording';
+      io.to(roomId).emit('recording-resumed', { timestamp: new Date() });
     }
   });
 
@@ -286,7 +507,116 @@ io.on('connection', (socket) => {
     const room = rooms.get(roomId);
     if (room && room.hostId === hostId) {
       room.isRecording = false;
-      io.to(roomId).emit('recording-stopped');
+      room.recordingStatus = 'stopped';
+      io.to(roomId).emit('recording-stopped', { timestamp: new Date() });
+    }
+  });
+
+  // Meeting mode controls
+  socket.on('toggle-webinar-mode', ({ roomId, hostId, enabled }) => {
+    const room = rooms.get(roomId);
+    if (room && room.hostId === hostId) {
+      room.type = enabled ? ROOM_TYPES.WEBINAR : ROOM_TYPES.MEETING;
+      io.to(roomId).emit('webinar-mode-toggled', { enabled, timestamp: new Date() });
+    }
+  });
+
+  // Poll system
+  socket.on('create-poll', ({ roomId, hostId, question, options, duration }) => {
+    const room = rooms.get(roomId);
+    if (room && room.hostId === hostId) {
+      const poll = {
+        id: uuidv4(),
+        question,
+        options: options.map((option, index) => ({
+          id: index,
+          text: option,
+          votes: 0,
+          voters: []
+        })),
+        createdAt: new Date(),
+        endsAt: new Date(Date.now() + duration * 1000),
+        isActive: true,
+        totalVotes: 0
+      };
+      
+      room.polls.push(poll);
+      room.activePoll = poll;
+      io.to(roomId).emit('poll-created', poll);
+      
+      // Auto-close poll after duration
+      setTimeout(() => {
+        poll.isActive = false;
+        if (room.activePoll?.id === poll.id) {
+          room.activePoll = null;
+        }
+        io.to(roomId).emit('poll-closed', { pollId: poll.id });
+      }, duration * 1000);
+    }
+  });
+
+  socket.on('vote-poll', ({ roomId, pollId, optionId, userId, userName }) => {
+    const room = rooms.get(roomId);
+    if (room) {
+      const poll = room.polls.find(p => p.id === pollId && p.isActive);
+      if (poll) {
+        // Check if user already voted
+        const hasVoted = poll.options.some(option => 
+          option.voters.some(voter => voter.userId === userId)
+        );
+        
+        if (!hasVoted) {
+          const option = poll.options.find(o => o.id === optionId);
+          if (option) {
+            option.votes++;
+            option.voters.push({ userId, userName });
+            poll.totalVotes++;
+            
+            io.to(roomId).emit('poll-vote-recorded', {
+              pollId,
+              optionId,
+              userId,
+              totalVotes: poll.totalVotes,
+              optionVotes: option.votes
+            });
+          }
+        }
+      }
+    }
+  });
+
+  // Whiteboard functionality
+  socket.on('whiteboard-update', ({ roomId, drawingData, userId }) => {
+    const room = rooms.get(roomId);
+    if (room) {
+      room.whiteboardData.drawings.push({
+        ...drawingData,
+        userId,
+        timestamp: new Date()
+      });
+      room.whiteboardData.isActive = true;
+      
+      socket.to(roomId).emit('whiteboard-updated', {
+        drawingData: { ...drawingData, userId },
+        timestamp: new Date()
+      });
+    }
+  });
+
+  socket.on('clear-whiteboard', ({ roomId, hostId }) => {
+    const room = rooms.get(roomId);
+    if (room && room.hostId === hostId) {
+      room.whiteboardData = { drawings: [], isActive: false };
+      io.to(roomId).emit('whiteboard-cleared');
+    }
+  });
+
+  // Meeting notes
+  socket.on('update-meeting-notes', ({ roomId, hostId, notes }) => {
+    const room = rooms.get(roomId);
+    if (room && room.hostId === hostId) {
+      room.meetingNotes = notes;
+      socket.to(roomId).emit('meeting-notes-updated', { notes, timestamp: new Date() });
     }
   });
 
