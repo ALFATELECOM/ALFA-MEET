@@ -934,61 +934,67 @@ io.on('connection', (socket) => {
   // WebRTC Signaling Events
   socket.on('webrtc-offer', (data) => {
     const { roomId, targetId, offer } = data;
-    console.log(`📞 WebRTC offer from ${socket.id} to ${targetId} in room ${roomId}`);
-    
-    // Forward offer to target user
     const room = rooms.get(roomId);
-    if (room) {
-      // Find target user's socket
-      for (const [userId, participant] of room.participants.entries()) {
-        if (userId === targetId) {
-          io.to(participant.socketId).emit('webrtc-offer', {
-            fromId: socket.id,
-            offer: offer
-          });
-          break;
-        }
+    if (!room) return;
+    // Determine sender's userId from socketId
+    let fromUserId = null;
+    for (const [uid, participant] of room.participants.entries()) {
+      if (participant.socketId === socket.id) {
+        fromUserId = uid;
+        break;
       }
+    }
+    console.log(`📞 WebRTC offer from ${fromUserId || socket.id} to ${targetId} in room ${roomId}`);
+    // Forward offer to target user
+    const target = room.participants.get(targetId);
+    if (target) {
+      io.to(target.socketId).emit('webrtc-offer', {
+        fromId: fromUserId || socket.id,
+        offer: offer
+      });
     }
   });
 
   socket.on('webrtc-answer', (data) => {
     const { roomId, targetId, answer } = data;
-    console.log(`📞 WebRTC answer from ${socket.id} to ${targetId} in room ${roomId}`);
-    
-    // Forward answer to target user
     const room = rooms.get(roomId);
-    if (room) {
-      // Find target user's socket
-      for (const [userId, participant] of room.participants.entries()) {
-        if (userId === targetId) {
-          io.to(participant.socketId).emit('webrtc-answer', {
-            fromId: socket.id,
-            answer: answer
-          });
-          break;
-        }
+    if (!room) return;
+    // Determine sender's userId from socketId
+    let fromUserId = null;
+    for (const [uid, participant] of room.participants.entries()) {
+      if (participant.socketId === socket.id) {
+        fromUserId = uid;
+        break;
       }
+    }
+    console.log(`📞 WebRTC answer from ${fromUserId || socket.id} to ${targetId} in room ${roomId}`);
+    const target = room.participants.get(targetId);
+    if (target) {
+      io.to(target.socketId).emit('webrtc-answer', {
+        fromId: fromUserId || socket.id,
+        answer: answer
+      });
     }
   });
 
   socket.on('ice-candidate', (data) => {
     const { roomId, targetId, candidate } = data;
-    console.log(`🧊 ICE candidate from ${socket.id} to ${targetId} in room ${roomId}`);
-    
-    // Forward ICE candidate to target user
     const room = rooms.get(roomId);
-    if (room) {
-      // Find target user's socket
-      for (const [userId, participant] of room.participants.entries()) {
-        if (userId === targetId) {
-          io.to(participant.socketId).emit('ice-candidate', {
-            fromId: socket.id,
-            candidate: candidate
-          });
-          break;
-        }
+    if (!room) return;
+    let fromUserId = null;
+    for (const [uid, participant] of room.participants.entries()) {
+      if (participant.socketId === socket.id) {
+        fromUserId = uid;
+        break;
       }
+    }
+    console.log(`🧊 ICE candidate from ${fromUserId || socket.id} to ${targetId} in room ${roomId}`);
+    const target = room.participants.get(targetId);
+    if (target) {
+      io.to(target.socketId).emit('ice-candidate', {
+        fromId: fromUserId || socket.id,
+        candidate: candidate
+      });
     }
   });
 
