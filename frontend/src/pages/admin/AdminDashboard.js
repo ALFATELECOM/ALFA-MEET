@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAdmin } from '../../context/AdminContext';
 import MeetingList from '../../components/admin/MeetingList';
 import CreateMeetingModal from '../../components/admin/CreateMeetingModal';
+import EnhancedCreateMeetingModal from '../../components/admin/EnhancedCreateMeetingModal';
 import MeetingStats from '../../components/admin/MeetingStats';
 import AdvancedMeetingControls from '../../components/admin/AdvancedMeetingControls';
 import EnhancedMeetingControls from '../../components/admin/EnhancedMeetingControls';
@@ -20,7 +21,12 @@ import {
   CogIcon,
   ChartBarIcon,
   BoltIcon,
-  ComputerDesktopIcon
+  ComputerDesktopIcon,
+  HomeIcon,
+  VideoCameraIcon,
+  UserGroupIcon,
+  ShieldCheckIcon,
+  AdjustmentsHorizontalIcon
 } from '@heroicons/react/24/outline';
 
 const AdminDashboard = () => {
@@ -50,86 +56,179 @@ const AdminDashboard = () => {
   const totalMeetings = meetings.length;
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      {/* Professional Header */}
-      <div className="bg-white shadow-lg border-b-2 border-blue-600">
-        <div className="max-w-7xl mx-auto px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
-            <div className="flex items-center space-x-6">
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
-                  <ComputerDesktopIcon className="h-6 w-6 text-white" />
-                </div>
-                <div>
-                  <h1 className="text-2xl font-bold text-gray-900">ALFA MEET</h1>
-                  <p className="text-sm text-gray-600">Professional Video Conferencing</p>
-                </div>
-              </div>
-              <div className="hidden md:block h-8 w-px bg-gray-300"></div>
-              <div className="hidden md:block">
-                <p className="text-sm text-gray-500">Welcome back,</p>
-                <p className="font-semibold text-gray-900">{adminUser?.name || 'Admin User'}</p>
-              </div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex">
+      {/* Professional Sidebar Navigation */}
+      <div className="w-64 bg-white shadow-xl border-r border-gray-200 flex flex-col">
+        {/* Logo Section */}
+        <div className="p-6 border-b border-gray-100">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
+              <ComputerDesktopIcon className="h-6 w-6 text-white" />
             </div>
-            <div className="flex items-center space-x-4">
-              <button
-                onClick={() => setShowCreateModal(true)}
-                className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-6 py-3 rounded-lg flex items-center space-x-2 transition duration-200 shadow-lg"
-              >
-                <PlusIcon className="h-5 w-5" />
-                <span className="font-semibold">Schedule a Meeting</span>
-              </button>
-              <button
-                onClick={handleLogout}
-                className="text-gray-600 hover:text-gray-900 p-2 rounded-lg hover:bg-gray-100 transition duration-200"
-                title="Logout"
-              >
-                <ArrowRightOnRectangleIcon className="h-6 w-6" />
-              </button>
+            <div>
+              <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+                ALFA MEET
+              </h1>
+              <p className="text-xs text-gray-500">Admin Panel</p>
             </div>
+          </div>
+        </div>
+
+        {/* Navigation Menu */}
+        <nav className="flex-1 p-4 space-y-2">
+          {[
+            { id: 'dashboard', name: 'Dashboard', icon: HomeIcon, color: 'blue' },
+            { id: 'meetings', name: 'Meetings', icon: VideoCameraIcon, color: 'green' },
+            { id: 'users', name: 'User Management', icon: UserGroupIcon, color: 'purple' },
+            { id: 'analytics', name: 'Analytics', icon: ChartBarIcon, color: 'orange' },
+            { id: 'controls', name: 'Live Controls', icon: CogIcon, color: 'red' },
+            { id: 'roles', name: 'Role Management', icon: ShieldCheckIcon, color: 'indigo' },
+            { id: 'settings', name: 'Settings', icon: AdjustmentsHorizontalIcon, color: 'pink' }
+          ].map((item) => {
+            const Icon = item.icon;
+            const isActive = activeTab === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => setActiveTab(item.id)}
+                className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition duration-200 text-left ${
+                  isActive 
+                    ? `bg-gradient-to-r from-${item.color}-100 to-${item.color}-50 text-${item.color}-700 shadow-md border border-${item.color}-200` 
+                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                }`}
+              >
+                <Icon className={`h-5 w-5 ${isActive ? `text-${item.color}-600` : 'text-gray-400'}`} />
+                <span className="font-medium">{item.name}</span>
+                {isActive && (
+                  <div className={`ml-auto w-2 h-2 bg-${item.color}-500 rounded-full`}></div>
+                )}
+              </button>
+            );
+          })}
+        </nav>
+
+        {/* User Profile Section */}
+        <div className="p-4 border-t border-gray-100">
+          <div className="flex items-center space-x-3 p-3 bg-gradient-to-r from-gray-50 to-blue-50 rounded-xl">
+            <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center">
+              <span className="text-white font-semibold text-sm">
+                {(adminUser?.name || 'Admin').charAt(0)}
+              </span>
+            </div>
+            <div className="flex-1">
+              <p className="font-semibold text-gray-900 text-sm">{adminUser?.name || 'Admin User'}</p>
+              <p className="text-xs text-gray-500">Administrator</p>
+            </div>
+            <button
+              onClick={handleLogout}
+              className="p-2 text-gray-400 hover:text-red-500 rounded-lg hover:bg-red-50 transition duration-200"
+              title="Logout"
+            >
+              <ArrowRightOnRectangleIcon className="h-4 w-4" />
+            </button>
           </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-green-100 rounded-lg">
-                <UsersIcon className="h-6 w-6 text-green-600" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Active Meetings</p>
-                <p className="text-2xl font-bold text-gray-900">{activeMeetings}</p>
-              </div>
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col">
+        {/* Top Header Bar */}
+        <div className="bg-white shadow-sm border-b border-gray-200 px-6 py-4">
+          <div className="flex justify-between items-center">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900 capitalize">
+                {activeTab === 'dashboard' ? 'Dashboard Overview' : 
+                 activeTab === 'meetings' ? 'Meeting Management' :
+                 activeTab === 'users' ? 'User Management' :
+                 activeTab === 'analytics' ? 'Analytics & Reports' :
+                 activeTab === 'controls' ? 'Live Meeting Controls' :
+                 activeTab === 'roles' ? 'Role & Permissions' : 'Settings'}
+              </h2>
+              <p className="text-gray-600 text-sm">
+                {activeTab === 'dashboard' ? 'Monitor your platform performance' :
+                 activeTab === 'meetings' ? 'Create and manage meetings & webinars' :
+                 activeTab === 'users' ? 'Manage users and their permissions' :
+                 activeTab === 'analytics' ? 'View detailed analytics and generate reports' :
+                 activeTab === 'controls' ? 'Control active meetings in real-time' :
+                 activeTab === 'roles' ? 'Configure roles and permission levels' : 'Platform configuration'}
+              </p>
             </div>
-          </div>
-          
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <CalendarIcon className="h-6 w-6 text-blue-600" />
+            <div className="flex items-center space-x-3">
+              <div className="bg-gradient-to-r from-green-100 to-emerald-100 px-4 py-2 rounded-full border border-green-200">
+                <div className="flex items-center space-x-2">
+                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                  <span className="text-green-700 text-sm font-medium">System Online</span>
+                </div>
               </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Scheduled</p>
-                <p className="text-2xl font-bold text-gray-900">{scheduledMeetings}</p>
-              </div>
-            </div>
-          </div>
-          
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-purple-100 rounded-lg">
-                <ClockIcon className="h-6 w-6 text-purple-600" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Total Meetings</p>
-                <p className="text-2xl font-bold text-gray-900">{totalMeetings}</p>
-              </div>
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white px-6 py-2.5 rounded-xl flex items-center space-x-2 transition duration-200 shadow-lg hover:shadow-xl"
+              >
+                <PlusIcon className="h-5 w-5" />
+                <span className="font-semibold">New Meeting</span>
+              </button>
             </div>
           </div>
         </div>
+
+        {/* Main Content */}
+        <div className="flex-1 p-6 overflow-y-auto">
+          {/* Dashboard Stats Cards */}
+          {(activeTab === 'dashboard' || activeTab === 'overview') && (
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+              <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-2xl shadow-xl p-6 text-white">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-blue-100 text-sm font-medium">Active Meetings</p>
+                    <p className="text-3xl font-bold">{activeMeetings}</p>
+                    <p className="text-blue-200 text-xs mt-1">Currently running</p>
+                  </div>
+                  <div className="p-3 bg-white bg-opacity-20 rounded-xl">
+                    <BoltIcon className="h-8 w-8" />
+                  </div>
+                </div>
+              </div>
+              
+              <div className="bg-gradient-to-r from-green-500 to-emerald-600 rounded-2xl shadow-xl p-6 text-white">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-green-100 text-sm font-medium">Scheduled</p>
+                    <p className="text-3xl font-bold">{scheduledMeetings}</p>
+                    <p className="text-green-200 text-xs mt-1">Upcoming sessions</p>
+                  </div>
+                  <div className="p-3 bg-white bg-opacity-20 rounded-xl">
+                    <CalendarIcon className="h-8 w-8" />
+                  </div>
+                </div>
+              </div>
+              
+              <div className="bg-gradient-to-r from-purple-500 to-indigo-600 rounded-2xl shadow-xl p-6 text-white">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-purple-100 text-sm font-medium">Total Meetings</p>
+                    <p className="text-3xl font-bold">{totalMeetings}</p>
+                    <p className="text-purple-200 text-xs mt-1">All time</p>
+                  </div>
+                  <div className="p-3 bg-white bg-opacity-20 rounded-xl">
+                    <ClockIcon className="h-8 w-8" />
+                  </div>
+                </div>
+              </div>
+              
+              <div className="bg-gradient-to-r from-orange-500 to-red-600 rounded-2xl shadow-xl p-6 text-white">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-orange-100 text-sm font-medium">Total Users</p>
+                    <p className="text-3xl font-bold">1,247</p>
+                    <p className="text-orange-200 text-xs mt-1">+8% growth</p>
+                  </div>
+                  <div className="p-3 bg-white bg-opacity-20 rounded-xl">
+                    <UsersIcon className="h-8 w-8" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
         {/* Tabs */}
         <div className="bg-white rounded-lg shadow">
@@ -377,13 +476,18 @@ const AdminDashboard = () => {
         </div>
       </div>
 
-      {/* Create Meeting Modal */}
-      {showCreateModal && (
-        <CreateMeetingModal
-          onClose={() => setShowCreateModal(false)}
-          onSuccess={() => setShowCreateModal(false)}
-        />
-      )}
+        {/* Create Meeting Modal */}
+        {showCreateModal && (
+          <EnhancedCreateMeetingModal
+            isOpen={showCreateModal}
+            onClose={() => setShowCreateModal(false)}
+            onCreateMeeting={(meetingData) => {
+              console.log('Creating meeting:', meetingData);
+              setShowCreateModal(false);
+            }}
+          />
+        )}
+      </div>
     </div>
   );
 };
