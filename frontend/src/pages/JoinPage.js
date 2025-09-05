@@ -33,7 +33,7 @@ const JoinPage = () => {
   const [isJoining, setIsJoining] = useState(false);
   const [mediaReady, setMediaReady] = useState(false);
 
-  const serverUrl = process.env.REACT_APP_SERVER_URL || 'http://localhost:5000';
+  const serverUrl = 'https://alfa-meet.onrender.com';
   
   // Get data from navigation state
   const isHost = location.state?.isHost || false;

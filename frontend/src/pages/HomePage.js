@@ -19,7 +19,7 @@ const HomePage = () => {
   const [hostName, setHostName] = useState('');
   const [joinRoomId, setJoinRoomId] = useState('');
 
-  const serverUrl = process.env.REACT_APP_SERVER_URL || 'http://localhost:5000';
+  const serverUrl = 'https://alfa-meet.onrender.com';
 
   const handleCreateRoom = async (e) => {
     e.preventDefault();

@@ -16,7 +16,7 @@ export const SocketProvider = ({ children }) => {
   const [connected, setConnected] = useState(false);
 
   useEffect(() => {
-    const serverUrl = process.env.REACT_APP_SERVER_URL || 'http://localhost:5000';
+    const serverUrl = 'https://alfa-meet.onrender.com';
     const newSocket = io(serverUrl, {
       transports: ['websocket', 'polling'],
     });
