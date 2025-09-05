@@ -10,11 +10,21 @@ require('dotenv').config();
 const app = express();
 const server = http.createServer(app);
 
-// CORS configuration
+// CORS configuration - Enhanced for better connectivity
 const corsOptions = {
-  origin: process.env.FRONTEND_URL || "http://localhost:3000",
-  methods: ["GET", "POST"],
-  credentials: true
+  origin: [
+    "http://localhost:3000",
+    "https://localhost:3000",
+    "https://alfa-meet.vercel.app",
+    "https://alfa-meet-vercel.app",
+    "https://alfa-meet-frontend.vercel.app",
+    "https://www.alfa-meet.vercel.app",
+    process.env.FRONTEND_URL
+  ].filter(Boolean),
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  credentials: true,
+  optionsSuccessStatus: 200,
+  allowedHeaders: ["Content-Type", "Authorization", "x-requested-with"]
 };
 
 app.use(cors(corsOptions));
@@ -28,9 +38,28 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
-// Socket.io setup
+// Socket.io setup - Enhanced for better connectivity
 const io = socketIo(server, {
-  cors: corsOptions
+  cors: {
+    origin: [
+      "http://localhost:3000",
+      "https://localhost:3000",
+      "https://alfa-meet.vercel.app",
+      "https://alfa-meet-vercel.app",
+      "https://alfa-meet-frontend.vercel.app",
+      "https://www.alfa-meet.vercel.app",
+      process.env.FRONTEND_URL
+    ].filter(Boolean),
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    credentials: true,
+    allowedHeaders: ["Content-Type", "Authorization", "x-requested-with"],
+    transports: ['websocket', 'polling']
+  },
+  allowEIO3: true,
+  pingTimeout: 60000,
+  pingInterval: 25000,
+  upgradeTimeout: 30000,
+  maxHttpBufferSize: 1e6
 });
 
 // Store active rooms, users, rewards, and reactions
@@ -222,9 +251,27 @@ function generateMeetingReport(roomId) {
   };
 }
 
-// API Routes
+// Enhanced API Routes with better logging
 app.get('/health', (req, res) => {
-  res.json({ status: 'OK', timestamp: new Date().toISOString() });
+  console.log('🏥 Health check requested from:', req.headers.origin || 'unknown');
+  res.json({ 
+    status: 'OK', 
+    timestamp: new Date().toISOString(),
+    server: 'ALFA MEET Backend',
+    version: '1.0.0',
+    activeRooms: rooms.size,
+    activeUsers: users.size
+  });
+});
+
+// Add debugging endpoint
+app.get('/debug', (req, res) => {
+  res.json({
+    activeRooms: Array.from(rooms.keys()),
+    activeUsers: users.size,
+    corsOrigins: corsOptions.origin,
+    timestamp: new Date().toISOString()
+  });
 });
 
 app.post('/api/rooms', (req, res) => {
@@ -315,55 +362,97 @@ app.get('/api/rooms/:roomId/stats', (req, res) => {
   });
 });
 
-// Socket.io connection handling
+// Socket.io connection handling - Enhanced
 io.on('connection', (socket) => {
-  console.log('User connected:', socket.id);
+  console.log('🔌 User connected:', socket.id);
+  console.log('📍 Origin:', socket.handshake.headers.origin);
+  console.log('🌐 User Agent:', socket.handshake.headers['user-agent']);
+  console.log('🕒 Connection Time:', new Date().toISOString());
+  
+  // Send connection confirmation
+  socket.emit('connection-confirmed', {
+    socketId: socket.id,
+    timestamp: new Date().toISOString(),
+    server: 'ALFA MEET Backend'
+  });
 
-  // Join room (enhanced)
+  // Join room (enhanced with better error handling)
   socket.on('join-room', ({ roomId, userId, userName, userData }) => {
-    let room = rooms.get(roomId);
-    
-    // Auto-create room if it doesn't exist
-    if (!room) {
-      console.log(`Creating new room: ${roomId}`);
-      room = new Room(roomId, `Room ${roomId}`, ROOM_TYPES.MEETING, userId);
-      rooms.set(roomId, room);
+    try {
+      console.log(`🚪 Join room request: ${userId} (${userName}) -> ${roomId}`);
+      
+      if (!roomId || !userId || !userName) {
+        socket.emit('error', { message: 'Missing required room join data' });
+        return;
+      }
+
+      let room = rooms.get(roomId);
+      
+      // Auto-create room if it doesn't exist
+      if (!room) {
+        console.log(`🏗️ Creating new room: ${roomId}`);
+        room = new Room(roomId, `Room ${roomId}`, ROOM_TYPES.MEETING, userId);
+        rooms.set(roomId, room);
+      }
+
+      // Check if user is blocked
+      if (room.blockedUsers.has(userId)) {
+        socket.emit('join-rejected', { reason: 'User is blocked from this room' });
+        return;
+      }
+
+      // Add user to room
+      const participantData = { userName, ...userData };
+      room.addParticipant(userId, socket.id, participantData);
+      users.set(socket.id, { userId, roomId, userData: participantData });
+      
+      // Join socket room
+      socket.join(roomId);
+
+      // Get current raised hands for this room
+      const currentHands = raisedHands.get(roomId) ? Array.from(raisedHands.get(roomId).values()) : [];
+      const participants = room.getParticipants();
+
+      console.log(`✅ User ${userId} (${userName}) successfully joined room ${roomId}`);
+      console.log(`📊 Room ${roomId} now has ${room.participants.size} participants:`, participants.map(p => p.userName));
+
+      // Notify user they joined successfully
+      socket.emit('joined-room', {
+        success: true,
+        roomId,
+        roomName: room.name,
+        roomType: room.type,
+        participants,
+        settings: room.settings,
+        chatHistory: room.chatHistory,
+        reactionHistory: room.reactionHistory.slice(-50), // Last 50 reactions
+        raisedHands: currentHands,
+        activePoll: room.activePoll,
+        recordingStatus: room.recordingStatus,
+        meetingNotes: room.meetingNotes,
+        userRewards: getUserRewards(userId),
+        timestamp: new Date().toISOString()
+      });
+
+      // Notify other participants with full participant data
+      socket.to(roomId).emit('user-joined', {
+        userId,
+        userData: room.participants.get(userId),
+        participantCount: room.participants.size,
+        timestamp: new Date().toISOString()
+      });
+
+      // Send updated participants list to all users in room
+      io.to(roomId).emit('room-participants', {
+        participants,
+        count: room.participants.size,
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error) {
+      console.error('❌ Error in join-room:', error);
+      socket.emit('error', { message: 'Failed to join room', error: error.message });
     }
-
-    // Add user to room
-    const participantData = { userName, ...userData };
-    room.addParticipant(userId, socket.id, participantData);
-    users.set(socket.id, { userId, roomId, userData: participantData });
-    
-    // Join socket room
-    socket.join(roomId);
-
-    // Get current raised hands for this room
-    const currentHands = raisedHands.get(roomId) ? Array.from(raisedHands.get(roomId).values()) : [];
-
-    // Notify user they joined successfully
-    socket.emit('joined-room', {
-      roomId,
-      roomName: room.name,
-      roomType: room.type,
-      participants: room.getParticipants(),
-      settings: room.settings,
-      chatHistory: room.chatHistory,
-      reactionHistory: room.reactionHistory.slice(-50), // Last 50 reactions
-      raisedHands: currentHands,
-      activePoll: room.activePoll,
-      recordingStatus: room.recordingStatus,
-      meetingNotes: room.meetingNotes,
-      userRewards: getUserRewards(userId)
-    });
-
-    // Notify other participants
-    socket.to(roomId).emit('user-joined', {
-      userId,
-      userData: room.participants.get(userId)
-    });
-
-    console.log(`User ${userId} (${userName}) joined room ${roomId}`);
   });
 
   // Handle WebRTC signaling
@@ -861,23 +950,66 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Handle disconnection
-  socket.on('disconnect', () => {
-    console.log('User disconnected:', socket.id);
+  // Handle disconnection - Enhanced
+  socket.on('disconnect', (reason) => {
+    console.log('❌ User disconnected:', socket.id, 'Reason:', reason);
     
     const user = users.get(socket.id);
     if (user) {
-      const { userId, roomId } = user;
+      const { userId, roomId, userData } = user;
       const room = rooms.get(roomId);
       
+      console.log(`👋 User ${userId} (${userData?.userName || 'Unknown'}) left room ${roomId}`);
+      
       if (room) {
+        // Remove participant from room
         room.removeParticipant(userId);
-        socket.to(roomId).emit('user-left', { userId });
         
-        // If host left, end the room
+        // Clean up raised hands
+        if (raisedHands.has(roomId)) {
+          raisedHands.get(roomId).delete(userId);
+        }
+        
+        // Notify remaining participants
+        socket.to(roomId).emit('user-left', { 
+          userId, 
+          userName: userData?.userName,
+          participantCount: room.participants.size,
+          timestamp: new Date().toISOString()
+        });
+        
+        // Send updated participants list
+        io.to(roomId).emit('room-participants', {
+          participants: room.getParticipants(),
+          count: room.participants.size,
+          timestamp: new Date().toISOString()
+        });
+        
+        console.log(`📊 Room ${roomId} now has ${room.participants.size} participants`);
+        
+        // If host left, transfer host or end the room
         if (room.hostId === userId) {
-          io.to(roomId).emit('room-ended');
-          rooms.delete(roomId);
+          const remainingParticipants = room.getParticipants();
+          if (remainingParticipants.length > 0) {
+            // Transfer host to first co-host or first participant
+            const newHost = remainingParticipants.find(p => room.coHosts.has(p.id)) || remainingParticipants[0];
+            room.hostId = newHost.id;
+            room.updateParticipant(newHost.id, { role: 'host' });
+            
+            io.to(roomId).emit('host-transferred', {
+              newHostId: newHost.id,
+              newHostName: newHost.userName,
+              timestamp: new Date().toISOString()
+            });
+            
+            console.log(`👑 Host transferred to ${newHost.id} (${newHost.userName}) in room ${roomId}`);
+          } else {
+            // No participants left, end the room
+            io.to(roomId).emit('room-ended', { timestamp: new Date().toISOString() });
+            rooms.delete(roomId);
+            raisedHands.delete(roomId);
+            console.log(`🏁 Room ${roomId} ended - no participants remaining`);
+          }
         }
       }
       
