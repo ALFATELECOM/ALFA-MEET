@@ -17,11 +17,25 @@ export const SocketProvider = ({ children }) => {
 
   useEffect(() => {
     const serverUrl = process.env.REACT_APP_SERVER_URL || 'http://localhost:5000';
-    console.log('Connecting to server:', serverUrl);
+    console.log('🔌 Connecting to server:', serverUrl);
+    
+    // Test HTTP connection first
+    fetch(`${serverUrl}/health`)
+      .then(response => response.json())
+      .then(data => {
+        console.log('✅ Backend server is running:', data);
+      })
+      .catch(error => {
+        console.error('❌ Backend server not reachable:', error);
+        console.log('💡 Make sure backend server is running on port 5000');
+      });
+
     const newSocket = io(serverUrl, {
       transports: ['websocket', 'polling'],
       upgrade: true,
-      rememberUpgrade: true
+      rememberUpgrade: true,
+      timeout: 10000,
+      forceNew: true
     });
 
     newSocket.on('connect', () => {

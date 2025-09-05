@@ -6,6 +6,9 @@ import CreateMeetingModal from '../../components/admin/CreateMeetingModal';
 import MeetingStats from '../../components/admin/MeetingStats';
 import AdvancedMeetingControls from '../../components/admin/AdvancedMeetingControls';
 import MeetingReports from '../../components/admin/MeetingReports';
+import UserManagementPanel from '../../components/admin/UserManagementPanel';
+import AdvancedAnalytics from '../../components/admin/AdvancedAnalytics';
+import MeetingImageUpload from '../../components/admin/MeetingImageUpload';
 import {
   PlusIcon,
   CalendarIcon,
@@ -33,8 +36,10 @@ const AdminDashboard = () => {
     { id: 'overview', name: 'Overview', icon: CalendarIcon },
     { id: 'meetings', name: 'Meetings', icon: UsersIcon },
     { id: 'controls', name: 'Live Controls', icon: CogIcon },
+    { id: 'users', name: 'User Management', icon: UsersIcon },
     { id: 'reports', name: 'Reports', icon: ChartBarIcon },
-    { id: 'analytics', name: 'Analytics', icon: ClockIcon }
+    { id: 'analytics', name: 'AI Analytics', icon: BoltIcon },
+    { id: 'settings', name: 'Settings', icon: ClockIcon }
   ];
 
   const activeMeetings = meetings.filter(m => m.status === 'active').length;
@@ -244,11 +249,95 @@ const AdminDashboard = () => {
               </div>
             )}
             
+            {activeTab === 'users' && (
+              <div className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-medium text-gray-900">User Management & Moderation</h3>
+                  <div className="text-sm text-gray-500">
+                    Advanced user controls and moderation tools
+                  </div>
+                </div>
+                
+                {meetings.filter(m => m.status === 'active').length > 0 ? (
+                  <div className="space-y-6">
+                    {meetings.filter(m => m.status === 'active').map(meeting => (
+                      <UserManagementPanel
+                        key={meeting.id}
+                        participants={[]} // This will be populated from real-time data
+                        onBlockUser={(userId, reason) => console.log('Block user:', userId, reason)}
+                        onSuspendUser={(userId, duration, reason) => console.log('Suspend user:', userId, duration, reason)}
+                        onAddCoHost={(userId) => console.log('Add co-host:', userId)}
+                        onRemoveCoHost={(userId) => console.log('Remove co-host:', userId)}
+                        currentUserId={adminUser?.id}
+                        isHost={true}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-12 bg-gray-50 rounded-lg">
+                    <UsersIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No Active Meetings</h3>
+                    <p className="text-gray-500">User management tools will appear when meetings are active</p>
+                  </div>
+                )}
+              </div>
+            )}
+
             {activeTab === 'analytics' && (
-              <div className="text-center py-12">
-                <ClockIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">Advanced Analytics Coming Soon</h3>
-                <p className="text-gray-500">Real-time meeting analytics and AI insights will be available here.</p>
+              <div>
+                <AdvancedAnalytics meetings={meetings} />
+              </div>
+            )}
+
+            {activeTab === 'settings' && (
+              <div className="space-y-6">
+                <div>
+                  <h3 className="text-lg font-medium text-gray-900 mb-4">Meeting Configuration</h3>
+                  <MeetingImageUpload
+                    meeting={meetings[0]}
+                    onImageUpdate={(imageData) => console.log('Image updated:', imageData)}
+                  />
+                </div>
+
+                <div className="bg-white rounded-lg shadow p-6">
+                  <h4 className="text-lg font-medium text-gray-900 mb-4">Global Settings</h4>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h5 className="text-sm font-medium text-gray-900">Admin-Only Meeting Start</h5>
+                        <p className="text-xs text-gray-500">Only admins can start meetings and webinars</p>
+                      </div>
+                      <button className="bg-blue-600 text-white px-3 py-1 rounded text-sm">
+                        Enabled
+                      </button>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h5 className="text-sm font-medium text-gray-900">Maximum Participants</h5>
+                        <p className="text-xs text-gray-500">Global limit for all meetings</p>
+                      </div>
+                      <span className="text-sm font-medium text-gray-900">10,000</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h5 className="text-sm font-medium text-gray-900">AI Features</h5>
+                        <p className="text-xs text-gray-500">Transcription, summary, and moderation</p>
+                      </div>
+                      <button className="bg-green-600 text-white px-3 py-1 rounded text-sm">
+                        Active
+                      </button>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h5 className="text-sm font-medium text-gray-900">Mobile Optimization</h5>
+                        <p className="text-xs text-gray-500">Touch-optimized interface for mobile browsers</p>
+                      </div>
+                      <button className="bg-green-600 text-white px-3 py-1 rounded text-sm">
+                        Enabled
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
           </div>
