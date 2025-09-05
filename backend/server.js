@@ -12,19 +12,33 @@ const server = http.createServer(app);
 
 // CORS configuration - Enhanced for better connectivity
 const corsOptions = {
-  origin: [
-    "http://localhost:3000",
-    "https://localhost:3000",
-    "https://alfa-meet.vercel.app",
-    "https://alfa-meet-vercel.app",
-    "https://alfa-meet-frontend.vercel.app",
-    "https://www.alfa-meet.vercel.app",
-    process.env.FRONTEND_URL
-  ].filter(Boolean),
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    const allowedOrigins = [
+      "http://localhost:3000",
+      "https://localhost:3000",
+      "https://alfa-meet.vercel.app",
+      "https://alfa-meet-vercel.app", 
+      "https://alfa-meet-frontend.vercel.app",
+      "https://www.alfa-meet.vercel.app",
+      process.env.FRONTEND_URL
+    ].filter(Boolean);
+
+    // Check if origin is allowed
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      // Log for debugging but still allow (for development)
+      console.log('⚠️  CORS: Unknown origin:', origin);
+      callback(null, true); // Allow all origins for now
+    }
+  },
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   credentials: true,
   optionsSuccessStatus: 200,
-  allowedHeaders: ["Content-Type", "Authorization", "x-requested-with"]
+  allowedHeaders: ["Content-Type", "Authorization", "x-requested-with", "Accept"]
 };
 
 app.use(cors(corsOptions));
@@ -38,21 +52,33 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
-// Socket.io setup - Enhanced for better connectivity
+// Socket.io setup - Enhanced for better connectivity  
 const io = socketIo(server, {
   cors: {
-    origin: [
-      "http://localhost:3000",
-      "https://localhost:3000",
-      "https://alfa-meet.vercel.app",
-      "https://alfa-meet-vercel.app",
-      "https://alfa-meet-frontend.vercel.app",
-      "https://www.alfa-meet.vercel.app",
-      process.env.FRONTEND_URL
-    ].filter(Boolean),
+    origin: function (origin, callback) {
+      // Allow requests with no origin
+      if (!origin) return callback(null, true);
+      
+      const allowedOrigins = [
+        "http://localhost:3000",
+        "https://localhost:3000", 
+        "https://alfa-meet.vercel.app",
+        "https://alfa-meet-vercel.app",
+        "https://alfa-meet-frontend.vercel.app", 
+        "https://www.alfa-meet.vercel.app",
+        process.env.FRONTEND_URL
+      ].filter(Boolean);
+
+      if (allowedOrigins.indexOf(origin) !== -1) {
+        callback(null, true);
+      } else {
+        console.log('⚠️  Socket.IO CORS: Unknown origin:', origin);
+        callback(null, true); // Allow all origins for now
+      }
+    },
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     credentials: true,
-    allowedHeaders: ["Content-Type", "Authorization", "x-requested-with"],
+    allowedHeaders: ["Content-Type", "Authorization", "x-requested-with", "Accept"],
     transports: ['websocket', 'polling']
   },
   allowEIO3: true,
