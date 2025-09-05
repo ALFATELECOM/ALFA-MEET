@@ -4,6 +4,7 @@ import { useAdmin } from '../../context/AdminContext';
 import MeetingList from '../../components/admin/MeetingList';
 import CreateMeetingModal from '../../components/admin/CreateMeetingModal';
 import EnhancedCreateMeetingModal from '../../components/admin/EnhancedCreateMeetingModal';
+import SimplifiedCreateMeetingModal from '../../components/admin/SimplifiedCreateMeetingModal';
 import MeetingStats from '../../components/admin/MeetingStats';
 import AdvancedMeetingControls from '../../components/admin/AdvancedMeetingControls';
 import EnhancedMeetingControls from '../../components/admin/EnhancedMeetingControls';
@@ -469,16 +470,19 @@ const AdminDashboard = () => {
 
         {/* Create Meeting Modal */}
         {showCreateModal && (
-          <EnhancedCreateMeetingModal
+          <SimplifiedCreateMeetingModal
             isOpen={showCreateModal}
             onClose={() => setShowCreateModal(false)}
-                      onCreateMeeting={(meetingData) => {
-            const newMeeting = createMeeting(meetingData);
-            console.log('Meeting created:', newMeeting);
-            setShowCreateModal(false);
-            // Switch to meetings tab to show the created meeting
-            setActiveTab('meetings');
-          }}
+            onCreateMeeting={(meetingData) => {
+              console.log('Creating meeting with data:', meetingData);
+              const newMeeting = createMeeting(meetingData);
+              console.log('Meeting created successfully:', newMeeting);
+              setShowCreateModal(false);
+              // Switch to meetings tab to show the created meeting
+              setActiveTab('meetings');
+              // Show success message
+              alert('Meeting created successfully!');
+            }}
           />
         )}
       </div>
