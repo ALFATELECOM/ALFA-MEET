@@ -53,43 +53,71 @@ const RoomPage = () => {
       setSocketConnected(false);
     });
 
-    // Socket event listeners
+    // Enhanced socket event listeners
     socket.on('joined-room', (data) => {
       console.log('✅ Joined room successfully:', data);
-      console.log('Participants received:', data.participants);
-      setParticipants(data.participants || []);
-      setMessages(data.chatHistory || []);
-      if (data.participants && data.participants.length <= 1) {
-        setIsHost(true);
-        console.log('🎯 Set as host - first to join');
+      console.log('📊 Participants received:', data.participants);
+      
+      if (data.success && data.participants) {
+        setParticipants(data.participants);
+        setMessages(data.chatHistory || []);
+        
+        // Check if user is host based on backend response
+        const currentUser = data.participants.find(p => p.id === userId || p.userId === userId);
+        if (currentUser && currentUser.role === 'host') {
+          setIsHost(true);
+          console.log('🎯 Set as host based on backend role');
+        }
       }
     });
 
     socket.on('user-joined', (data) => {
       console.log('👥 New user joined:', data);
-      setParticipants(prev => {
-        console.log('Current participants before adding:', prev);
-        const existing = prev.find(p => p.id === data.userId || p.userId === data.userId);
-        if (existing) {
-          console.log('User already exists, not adding');
+      if (data.userData) {
+        setParticipants(prev => {
+          const existing = prev.find(p => p.id === data.userId || p.userId === data.userId);
+          if (!existing) {
+            console.log('Adding new participant:', data.userData);
+            return [...prev, data.userData];
+          }
           return prev;
-        }
-        const newParticipants = [...prev, data.userData || data];
-        console.log('Updated participants after adding:', newParticipants);
-        return newParticipants;
-      });
+        });
+      }
     });
 
     socket.on('user-left', (data) => {
-      console.log('User left:', data);
-      setParticipants(prev => prev.filter(p => 
-        p.id !== data.userId && p.userId !== data.userId
-      ));
+      console.log('👋 User left:', data);
+      setParticipants(prev => {
+        const filtered = prev.filter(p => 
+          p.id !== data.userId && p.userId !== data.userId
+        );
+        console.log('Participants after user left:', filtered);
+        return filtered;
+      });
     });
 
     socket.on('room-participants', (data) => {
-      console.log('Room participants updated:', data);
-      setParticipants(data);
+      console.log('📊 Room participants updated:', data);
+      if (data.participants) {
+        setParticipants(data.participants);
+        console.log('Updated participants list:', data.participants);
+      }
+    });
+
+    // Handle join rejection (blocked users)
+    socket.on('join-rejected', (data) => {
+      console.error('❌ Join rejected:', data.reason);
+      alert(`Cannot join room: ${data.reason}`);
+      navigate('/');
+    });
+
+    // Handle host transfer
+    socket.on('host-transferred', (data) => {
+      console.log('👑 Host transferred to:', data.newHostName);
+      if (data.newHostId === userId) {
+        setIsHost(true);
+        console.log('🎯 You are now the host');
+      }
     });
 
     socket.on('new-message', (message) => {
@@ -119,6 +147,10 @@ const RoomPage = () => {
       socket.off('new-message');
       socket.off('room-ended');
       socket.off('error');
+      socket.off('join-rejected');
+      socket.off('host-transferred');
+      socket.off('connect');
+      socket.off('disconnect');
     };
   }, [socket, roomId, userName, navigate, startCamera]);
 
