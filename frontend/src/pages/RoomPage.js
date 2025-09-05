@@ -42,32 +42,63 @@ const RoomPage = () => {
     }
 
     // Socket event listeners
+    socket.on('joined-room', (data) => {
+      console.log('Joined room successfully:', data);
+      setParticipants(data.participants || []);
+      setMessages(data.chatHistory || []);
+      if (data.participants && data.participants.length === 1) {
+        setIsHost(true);
+      }
+    });
+
     socket.on('user-joined', (data) => {
-      setParticipants(prev => [...prev, data]);
+      console.log('User joined:', data);
+      setParticipants(prev => {
+        const existing = prev.find(p => p.id === data.userId || p.userId === data.userId);
+        if (existing) return prev;
+        return [...prev, data.userData || data];
+      });
     });
 
     socket.on('user-left', (data) => {
-      setParticipants(prev => prev.filter(p => p.id !== data.id));
+      console.log('User left:', data);
+      setParticipants(prev => prev.filter(p => 
+        p.id !== data.userId && p.userId !== data.userId
+      ));
     });
 
     socket.on('room-participants', (data) => {
+      console.log('Room participants updated:', data);
       setParticipants(data);
     });
 
     socket.on('new-message', (message) => {
-      setMessages(prev => [...prev, message]);
+      console.log('New message:', message);
+      setMessages(prev => {
+        // Avoid duplicate messages
+        const exists = prev.find(m => m.id === message.id || 
+          (m.timestamp === message.timestamp && m.message === message.message && m.userId === message.userId));
+        if (exists) return prev;
+        return [...prev, message];
+      });
     });
 
     socket.on('room-ended', () => {
       navigate('/');
     });
 
+    socket.on('error', (error) => {
+      console.error('Socket error:', error);
+    });
+
     return () => {
+      socket.off('joined-room');
       socket.off('user-joined');
       socket.off('user-left');
       socket.off('room-participants');
       socket.off('new-message');
       socket.off('room-ended');
+      socket.off('error');
     };
   }, [socket, roomId, userName, navigate, startCamera]);
 
@@ -81,10 +112,11 @@ const RoomPage = () => {
         timestamp: new Date().toISOString()
       };
       
+      console.log('Sending message:', messageData);
       socket.emit('send-message', messageData);
       
-      // Add message to local state immediately for better UX
-      setMessages(prev => [...prev, messageData]);
+      // Don't add to local state immediately - wait for server confirmation
+      // This prevents duplicate messages
     }
   };
 

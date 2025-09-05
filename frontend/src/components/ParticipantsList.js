@@ -1,7 +1,9 @@
 import React from 'react';
 import { XMarkIcon, UserIcon, MicrophoneIcon } from '@heroicons/react/24/outline';
 
-const ParticipantsList = ({ participants, onClose }) => {
+const ParticipantsList = ({ participants = [], onClose }) => {
+  console.log('ParticipantsList participants:', participants);
+  
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
@@ -35,24 +37,37 @@ const ParticipantsList = ({ participants, onClose }) => {
           </div>
 
           {/* Other Participants */}
-          {participants.map((participant, index) => (
-            <div key={participant.id || index} className="flex items-center space-x-3 p-3 hover:bg-gray-50 rounded-lg">
-              <div className="flex-shrink-0">
-                <UserIcon className="h-8 w-8 text-gray-600" />
+          {participants.map((participant, index) => {
+            const participantName = participant.userName || participant.name || `User ${index + 1}`;
+            const participantId = participant.id || participant.userId || `participant-${index}`;
+            const isAudioMuted = participant.isAudioMuted !== undefined ? participant.isAudioMuted : false;
+            
+            return (
+              <div key={participantId} className="flex items-center space-x-3 p-3 hover:bg-gray-50 rounded-lg">
+                <div className="flex-shrink-0">
+                  <UserIcon className="h-8 w-8 text-gray-600" />
+                </div>
+                <div className="flex-1">
+                  <p className="font-medium text-gray-800">
+                    {participantName}
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    {participant.role === 'host' ? 'Host' : 'Participant'}
+                  </p>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <MicrophoneIcon className={`h-4 w-4 ${
+                    !isAudioMuted ? 'text-green-600' : 'text-red-600'
+                  }`} />
+                  {participant.isVideoMuted && (
+                    <svg className="w-4 h-4 text-red-600" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M3.707 2.293a1 1 0 00-1.414 1.414l14 14a1 1 0 001.414-1.414l-1.473-1.473A2 2 0 0017 14v-2a1 1 0 10-2 0v2a2 2 0 01-2 2H5.414l-1.707-1.707zM2 6a2 2 0 012-2h6a2 2 0 012 2v2a1 1 0 102 0V6a4 4 0 00-4-4H4a4 4 0 00-4 4v4a4 4 0 004 4h2.343L2 9.657V6z" clipRule="evenodd" />
+                    </svg>
+                  )}
+                </div>
               </div>
-              <div className="flex-1">
-                <p className="font-medium text-gray-800">
-                  {participant.userName || `User ${index + 1}`}
-                </p>
-                <p className="text-sm text-gray-500">Participant</p>
-              </div>
-              <div className="flex items-center space-x-2">
-                <MicrophoneIcon className={`h-4 w-4 ${
-                  participant.isAudioEnabled !== false ? 'text-green-600' : 'text-red-600'
-                }`} />
-              </div>
-            </div>
-          ))}
+            );
+          })}
 
           {participants.length === 0 && (
             <div className="text-center text-gray-500 mt-8">

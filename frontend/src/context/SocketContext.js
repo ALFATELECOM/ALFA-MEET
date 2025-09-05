@@ -17,7 +17,12 @@ export const SocketProvider = ({ children }) => {
 
   useEffect(() => {
     const serverUrl = process.env.REACT_APP_SERVER_URL || 'http://localhost:5000';
-    const newSocket = io(serverUrl);
+    console.log('Connecting to server:', serverUrl);
+    const newSocket = io(serverUrl, {
+      transports: ['websocket', 'polling'],
+      upgrade: true,
+      rememberUpgrade: true
+    });
 
     newSocket.on('connect', () => {
       console.log('Connected to server');
