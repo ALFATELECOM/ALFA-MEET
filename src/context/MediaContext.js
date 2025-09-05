@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useRef, useCallback } from 'react';
+import React, { createContext, useContext, useState, useRef, useCallback, useEffect } from 'react';
+import { useSocket } from './SocketContext';
 
 const MediaContext = createContext();
 
@@ -15,7 +16,10 @@ export const MediaProvider = ({ children }) => {
   const [isVideoEnabled, setIsVideoEnabled] = useState(true);
   const [isAudioEnabled, setIsAudioEnabled] = useState(true);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
+  const [currentRoomId, setCurrentRoomId] = useState(null);
+  const [currentUserId, setCurrentUserId] = useState(null);
   const localVideoRef = useRef(null);
+  const { socket } = useSocket();
 
   const startCamera = useCallback(async () => {
     try {
@@ -85,11 +89,20 @@ export const MediaProvider = ({ children }) => {
         videoTrack.enabled = !videoTrack.enabled;
         setIsVideoEnabled(videoTrack.enabled);
         console.log('✅ Video toggled to:', videoTrack.enabled);
+        
+        // Notify backend about video toggle
+        if (socket && currentRoomId && currentUserId) {
+          socket.emit('toggle-video', {
+            roomId: currentRoomId,
+            userId: currentUserId,
+            isVideoEnabled: videoTrack.enabled
+          });
+        }
       }
     } else {
       console.log('❌ No local stream available');
     }
-  }, [localStream, isVideoEnabled]);
+  }, [localStream, isVideoEnabled, socket, currentRoomId, currentUserId]);
 
   const toggleAudio = useCallback(() => {
     console.log('🎤 Toggling audio, current state:', isAudioEnabled);
@@ -99,11 +112,20 @@ export const MediaProvider = ({ children }) => {
         audioTrack.enabled = !audioTrack.enabled;
         setIsAudioEnabled(audioTrack.enabled);
         console.log('✅ Audio toggled to:', audioTrack.enabled);
+        
+        // Notify backend about audio toggle
+        if (socket && currentRoomId && currentUserId) {
+          socket.emit('toggle-audio', {
+            roomId: currentRoomId,
+            userId: currentUserId,
+            isAudioEnabled: audioTrack.enabled
+          });
+        }
       }
     } else {
       console.log('❌ No local stream available');
     }
-  }, [localStream, isAudioEnabled]);
+  }, [localStream, isAudioEnabled, socket, currentRoomId, currentUserId]);
 
   const startScreenShare = useCallback(async () => {
     try {
@@ -123,18 +145,28 @@ export const MediaProvider = ({ children }) => {
     setIsScreenSharing(false);
   }, []);
 
+  // Function to set room context for WebRTC signaling
+  const setRoomContext = useCallback((roomId, userId) => {
+    setCurrentRoomId(roomId);
+    setCurrentUserId(userId);
+    console.log('🏠 Room context set:', { roomId, userId });
+  }, []);
+
   const value = {
     localStream,
     isVideoEnabled,
     isAudioEnabled,
     isScreenSharing,
     localVideoRef,
+    currentRoomId,
+    currentUserId,
     startCamera,
     stopCamera,
     toggleVideo,
     toggleAudio,
     startScreenShare,
-    stopScreenShare
+    stopScreenShare,
+    setRoomContext
   };
 
   return (

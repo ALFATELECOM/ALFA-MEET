@@ -4,6 +4,7 @@ import { useSocket } from '../context/SocketContext';
 import { useMedia } from '../context/MediaContext';
 import { useMeetingFeatures } from '../context/MeetingFeaturesContext';
 import VideoGrid from '../components/VideoGrid';
+import WebRTCVideoGrid from '../components/WebRTCVideoGrid';
 import EnhancedControlBar from '../components/EnhancedControlBar';
 import Chat from '../components/Chat';
 import ParticipantsList from '../components/ParticipantsList';
@@ -16,7 +17,7 @@ const RoomPage = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { socket } = useSocket();
-  const { startCamera } = useMedia();
+  const { startCamera, setRoomContext } = useMedia();
   
   const [userName] = useState(location.state?.userName || 'Anonymous');
   const [userId] = useState(`user-${Date.now()}-${Math.random()}`);
@@ -35,6 +36,9 @@ const RoomPage = () => {
 
     // Initialize camera
     startCamera().catch(console.error);
+
+    // Set room context for WebRTC
+    setRoomContext(roomId, userId);
 
     // Join room
     socket.emit('join-room', { roomId, userName, userId });
@@ -270,7 +274,12 @@ const RoomPage = () => {
       <div className="flex-1 flex">
         {/* Video Area */}
         <div className="flex-1 relative">
-          <VideoGrid participants={participants} />
+          <WebRTCVideoGrid 
+            participants={participants} 
+            roomId={roomId}
+            userId={userId}
+            userName={userName}
+          />
           
           {/* Floating Reactions */}
           <FloatingReactions />
