@@ -243,12 +243,13 @@ const MobileOptimizedRoom = () => {
 
       {/* Video Grid - Mobile Optimized */}
       <div className="flex-1 relative">
-        <div className={`grid ${getVideoGridClass()} gap-1 h-full p-2`}>
+        <div className={`grid ${getVideoGridClass()} gap-2 h-full p-2`}>
           <WebRTCVideoGrid 
             participants={participants}
             roomId={roomId}
             userId={userId}
             userName={userName}
+            isMobile={true}
           />
         </div>
 

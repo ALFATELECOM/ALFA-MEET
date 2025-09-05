@@ -3,7 +3,7 @@ import { useMedia } from '../context/MediaContext';
 import { useSocket } from '../context/SocketContext';
 import { UserIcon, MicrophoneIcon, VideoCameraIcon } from '@heroicons/react/24/outline';
 
-const WebRTCVideoGrid = ({ participants = [], roomId, userId, userName }) => {
+const WebRTCVideoGrid = ({ participants = [], roomId, userId, userName, isMobile = false }) => {
   const { localVideoRef, isVideoEnabled, isAudioEnabled, localStream } = useMedia();
   const { socket } = useSocket();
   
@@ -11,6 +11,20 @@ const WebRTCVideoGrid = ({ participants = [], roomId, userId, userName }) => {
   const [peerConnections, setPeerConnections] = useState(new Map());
   const [remoteStreams, setRemoteStreams] = useState(new Map());
   const remoteVideoRefs = useRef(new Map());
+
+  // Viewport responsiveness for grid sizing
+  const [viewportWidth, setViewportWidth] = useState(
+    typeof window !== 'undefined' ? window.innerWidth : 1200
+  );
+  useEffect(() => {
+    const handleResize = () => setViewportWidth(window.innerWidth);
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', handleResize);
+    };
+  }, []);
 
   // ICE servers configuration
   const iceServers = {
@@ -231,6 +245,24 @@ const WebRTCVideoGrid = ({ participants = [], roomId, userId, userName }) => {
 
   const getGridClass = () => {
     const totalParticipants = participants.length + 1;
+    const isSmall = viewportWidth <= 640 || isMobile;
+    const isMedium = viewportWidth > 640 && viewportWidth <= 1024;
+
+    if (isSmall) {
+      if (totalParticipants === 1) return 'grid-cols-1';
+      if (totalParticipants === 2) return 'grid-cols-1 grid-rows-2';
+      if (totalParticipants <= 4) return 'grid-cols-2 grid-rows-2';
+      return 'grid-cols-2 grid-rows-3';
+    }
+
+    if (isMedium) {
+      if (totalParticipants === 1) return 'grid-cols-1';
+      if (totalParticipants === 2) return 'grid-cols-2';
+      if (totalParticipants <= 4) return 'grid-cols-2 grid-rows-2';
+      if (totalParticipants <= 6) return 'grid-cols-3 grid-rows-2';
+      return 'grid-cols-3 grid-rows-3';
+    }
+
     if (totalParticipants === 1) return 'grid-cols-1';
     if (totalParticipants === 2) return 'grid-cols-2';
     if (totalParticipants <= 4) return 'grid-cols-2 grid-rows-2';
@@ -238,11 +270,16 @@ const WebRTCVideoGrid = ({ participants = [], roomId, userId, userName }) => {
     return 'grid-cols-3 grid-rows-3';
   };
 
+  const sharingParticipantId = (() => {
+    const sharer = participants.find(p => p.isScreenSharing);
+    return sharer ? (sharer.id || sharer.userId) : null;
+  })();
+
   return (
     <div className="h-full p-4">
       <div className={`grid ${getGridClass()} gap-4 h-full`}>
         {/* Local Video */}
-        <div className="relative bg-gray-800 rounded-lg overflow-hidden group">
+        <div className="relative bg-gray-800 rounded-lg overflow-hidden group aspect-video">
           <video
             ref={localVideoRef}
             autoPlay
@@ -289,9 +326,15 @@ const WebRTCVideoGrid = ({ participants = [], roomId, userId, userName }) => {
           const hasRemoteStream = remoteStreams.has(participantId);
           const isVideoMuted = participant.isVideoMuted !== false; // Default to muted if not specified
           const isAudioMuted = participant.isAudioMuted !== false;
+          const isSharing = !!participant.isScreenSharing;
           
           return (
-            <div key={participantId} className="relative bg-gray-800 rounded-lg overflow-hidden group">
+            <div 
+              key={participantId}
+              className={`relative bg-gray-800 rounded-lg overflow-hidden group aspect-video ${
+                sharingParticipantId && participantId === sharingParticipantId ? 'col-span-full' : ''
+              }`}
+            >
               {/* Remote Video Stream */}
               <video
                 ref={getVideoRef(participantId)}
@@ -309,10 +352,8 @@ const WebRTCVideoGrid = ({ participants = [], roomId, userId, userName }) => {
                         {participantName.charAt(0).toUpperCase()}
                       </span>
                     </div>
-                    <p className="text-white text-sm font-medium">{participantName}</p>
-                    <p className="text-gray-300 text-xs">
-                      {!hasRemoteStream ? 'Connecting...' : 'Camera Off'}
-                    </p>
+                    <p className="text-white text-sm font-medium truncate max-w-[80%] mx-auto">{participantName}</p>
+                    <p className="text-gray-300 text-xs">{!hasRemoteStream ? 'Connecting...' : 'Camera Off'}</p>
                   </div>
                 </div>
               )}
@@ -334,13 +375,14 @@ const WebRTCVideoGrid = ({ participants = [], roomId, userId, userName }) => {
                 </div>
               </div>
               
-              {/* Connection status */}
-              <div className="absolute top-2 left-2">
-                {hasRemoteStream ? (
-                  <div className="bg-green-600 text-white px-2 py-1 rounded text-xs font-medium">
-                    Connected
+              {/* Connection / Sharing status */}
+              <div className="absolute top-2 left-2 flex items-center space-x-2">
+                {isSharing && (
+                  <div className="bg-blue-600 text-white px-2 py-1 rounded text-xs font-medium">
+                    Sharing Screen
                   </div>
-                ) : (
+                )}
+                {!hasRemoteStream && (
                   <div className="bg-yellow-600 text-white px-2 py-1 rounded text-xs font-medium animate-pulse">
                     Connecting...
                   </div>
