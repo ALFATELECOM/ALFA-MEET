@@ -211,11 +211,53 @@ export const AdminProvider = ({ children }) => {
     });
   };
 
-  const endMeeting = (meetingId) => {
-    updateMeeting(meetingId, { 
-      status: 'ended',
-      endedAt: new Date().toISOString()
-    });
+  const endMeeting = async (meetingId) => {
+    try {
+      const serverUrl = process.env.REACT_APP_SERVER_URL || 'https://alfa-meet.onrender.com';
+      const response = await fetch(`${serverUrl}/api/meetings/${meetingId}/end`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success) {
+          updateMeeting(meetingId, { status: 'ended', endedAt: new Date().toISOString() });
+          return;
+        }
+      }
+    } catch (e) {
+      console.warn('End meeting API failed, using local fallback');
+    }
+    updateMeeting(meetingId, { status: 'ended', endedAt: new Date().toISOString() });
+  };
+
+  // Sync: fetch active rooms and reconcile meeting statuses
+  const syncLiveMeetings = async () => {
+    try {
+      const serverUrl = process.env.REACT_APP_SERVER_URL || 'https://alfa-meet.onrender.com';
+      const [meetingsRes, roomsRes] = await Promise.all([
+        fetch(`${serverUrl}/api/meetings`),
+        fetch(`${serverUrl}/api/rooms/active`)
+      ]);
+      if (!meetingsRes.ok || !roomsRes.ok) throw new Error('Network');
+      const meetingsJson = await meetingsRes.json();
+      const roomsJson = await roomsRes.json();
+      if (!meetingsJson.success) throw new Error('Meetings fetch failed');
+      const serverMeetings = meetingsJson.meetings || [];
+      const liveRoomIds = new Set((roomsJson.rooms || []).map(r => r.meetingId).filter(Boolean));
+
+      // Reconcile: mark as active only if room exists; otherwise ended if previously active
+      const reconciled = serverMeetings.map(m => {
+        if (m.status === 'active' && !liveRoomIds.has(m.id)) {
+          return { ...m, status: 'ended', endedAt: new Date().toISOString() };
+        }
+        return m;
+      });
+      setMeetings(reconciled);
+      localStorage.setItem('adminMeetings', JSON.stringify(reconciled));
+    } catch (e) {
+      console.warn('Sync live meetings failed, keeping local state');
+    }
   };
 
   const value = {
@@ -230,6 +272,7 @@ export const AdminProvider = ({ children }) => {
     deleteMeeting,
     startMeeting,
     endMeeting,
+    syncLiveMeetings,
     loadMeetings
   };
 

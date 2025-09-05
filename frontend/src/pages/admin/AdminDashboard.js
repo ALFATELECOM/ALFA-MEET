@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAdmin } from '../../context/AdminContext';
 import MeetingList from '../../components/admin/MeetingList';
@@ -34,13 +34,20 @@ import {
 const AdminDashboard = () => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
-  const { adminUser, logout, meetings, createMeeting } = useAdmin();
+  const { adminUser, logout, meetings, createMeeting, syncLiveMeetings, endMeeting } = useAdmin();
   const navigate = useNavigate();
 
   const handleLogout = () => {
     logout();
     navigate('/admin/login');
   };
+
+  // Auto-refresh live meetings when opening the Live Controls tab
+  useEffect(() => {
+    if (activeTab === 'controls') {
+      syncLiveMeetings?.();
+    }
+  }, [activeTab, syncLiveMeetings]);
 
   const tabs = [
     { id: 'overview', name: 'Overview', icon: CalendarIcon },
@@ -280,6 +287,12 @@ const AdminDashboard = () => {
                   <div className="flex items-center space-x-2">
                     <BoltIcon className="h-5 w-5 text-blue-600" />
                     <span className="text-sm text-blue-600 font-medium">AI Enhanced</span>
+                    <button
+                      onClick={syncLiveMeetings}
+                      className="ml-3 px-3 py-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg text-sm"
+                    >
+                      Refresh
+                    </button>
                   </div>
                 </div>
                 
@@ -297,7 +310,7 @@ const AdminDashboard = () => {
                           { name: 'Lisa Chen', isAudioMuted: true, isVideoMuted: true, handRaised: false }
                         ]}
                         onStartMeeting={() => console.log('Start meeting:', meeting.id)}
-                        onEndMeeting={() => console.log('End meeting:', meeting.id)}
+                        onEndMeeting={() => endMeeting(meeting.id)}
                         onMuteAll={() => console.log('Mute all:', meeting.id)}
                         onUnmuteAll={() => console.log('Unmute all:', meeting.id)}
                         onLockMeeting={() => console.log('Lock meeting:', meeting.id)}
