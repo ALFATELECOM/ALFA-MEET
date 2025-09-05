@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { VideoCameraIcon, UserGroupIcon } from '@heroicons/react/24/outline';
+import { VideoCameraIcon, UserGroupIcon, ShieldCheckIcon } from '@heroicons/react/24/outline';
 
 const HomePage = () => {
   const [roomId, setRoomId] = useState('');
@@ -62,6 +62,16 @@ const HomePage = () => {
               <span>Join Room</span>
             </button>
           </div>
+        </div>
+
+        <div className="mt-6 text-center">
+          <button
+            onClick={() => navigate('/admin/login')}
+            className="text-indigo-600 hover:text-indigo-800 text-sm font-medium flex items-center justify-center space-x-1 mx-auto"
+          >
+            <ShieldCheckIcon className="h-4 w-4" />
+            <span>Admin Panel</span>
+          </button>
         </div>
       </div>
     </div>
