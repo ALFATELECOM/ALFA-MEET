@@ -357,6 +357,18 @@ io.on('connection', (socket) => {
       let room = rooms.get(roomId);
       if (!room) { room = new Room(roomId, `Room ${roomId}`, ROOM_TYPES.MEETING, userId); rooms.set(roomId, room); }
       if (room.blockedUsers.has(userId)) { socket.emit('join-rejected', { reason: 'User is blocked from this room' }); return; }
+      // If this userId already exists in the room, evict the old session to avoid duplicates
+      const existing = room.participants.get(userId);
+      if (existing && existing.socketId && existing.socketId !== socket.id) {
+        try {
+          const oldSocket = io.sockets.sockets.get(existing.socketId);
+          if (oldSocket) {
+            oldSocket.leave(roomId);
+            io.to(existing.socketId).emit('force-disconnect', { reason: 'duplicate-session' });
+          }
+        } catch {}
+        room.removeParticipant(userId);
+      }
       const participantData = { userName, ...userData };
       room.addParticipant(userId, socket.id, participantData);
       users.set(socket.id, { userId, roomId, userData: participantData });
@@ -431,6 +443,9 @@ io.on('connection', (socket) => {
   socket.on('add-cohost', ({ roomId, targetUserId }) => {
     const room = rooms.get(roomId);
     if (!room) return;
+    // Only host can assign co-host
+    const acting = users.get(socket.id);
+    if (!acting || acting.userId !== room.hostId) return;
     const target = room.participants.get(targetUserId);
     if (!target) return;
     room.coHosts.add(targetUserId);
@@ -442,6 +457,9 @@ io.on('connection', (socket) => {
   socket.on('remove-cohost', ({ roomId, targetUserId }) => {
     const room = rooms.get(roomId);
     if (!room) return;
+    // Only host can remove co-host
+    const acting = users.get(socket.id);
+    if (!acting || acting.userId !== room.hostId) return;
     const target = room.participants.get(targetUserId);
     if (!target) return;
     room.coHosts.delete(targetUserId);
