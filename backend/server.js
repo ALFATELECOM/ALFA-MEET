@@ -639,6 +639,18 @@ io.on('connection', (socket) => {
     }
   });
 
+  socket.on('unmute-participant', ({ roomId, targetUserId, hostId }) => {
+    const room = rooms.get(roomId);
+    if (room && room.hostId === hostId) {
+      room.updateParticipant(targetUserId, { isAudioMuted: false });
+      const targetParticipant = room.participants.get(targetUserId);
+      if (targetParticipant) {
+        io.to(targetParticipant.socketId).emit('force-unmute');
+        socket.to(roomId).emit('user-audio-toggled', { userId: targetUserId, isMuted: false });
+      }
+    }
+  });
+
   socket.on('remove-participant', ({ roomId, targetUserId, hostId }) => {
     const room = rooms.get(roomId);
     if (room && room.hostId === hostId) {
