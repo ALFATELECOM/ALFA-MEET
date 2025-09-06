@@ -41,9 +41,9 @@ export const MediaProvider = ({ children }) => {
   }, [selectedAudioInputId, selectedVideoInputId]);
 
   const startCamera = useCallback(async () => {
-    try {
-      const isMobile = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    const isMobile = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
+    const buildConstraints = () => {
       const videoConstraints = isVideoEnabled ? {
         deviceId: selectedVideoInputId ? { exact: selectedVideoInputId } : undefined,
         facingMode: selectedVideoInputId ? undefined : 'user',
@@ -51,7 +51,6 @@ export const MediaProvider = ({ children }) => {
         height: isMobile ? { ideal: 720, max: 720 } : { ideal: 720 },
         frameRate: { ideal: 24, max: 30 }
       } : false;
-
       const audioConstraints = isAudioEnabled ? {
         deviceId: selectedAudioInputId ? { exact: selectedAudioInputId } : undefined,
         echoCancellation: true,
@@ -59,20 +58,35 @@ export const MediaProvider = ({ children }) => {
         autoGainControl: true,
         channelCount: 1
       } : false;
+      return { video: videoConstraints, audio: audioConstraints };
+    };
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: videoConstraints,
-        audio: audioConstraints
-      });
-
+    const attach = (stream) => {
       setLocalStream(stream);
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream;
       }
+    };
+
+    try {
+      const constraints = buildConstraints();
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      attach(stream);
       return stream;
     } catch (error) {
-      console.error('Error accessing camera:', error);
-      throw error;
+      console.warn('getUserMedia failed, retrying with relaxed constraints:', error?.name || error);
+      try {
+        // Relax constraints and retry
+        const fallback = await navigator.mediaDevices.getUserMedia({
+          video: isVideoEnabled ? (selectedVideoInputId ? true : { facingMode: 'user' }) : false,
+          audio: isAudioEnabled ? true : false
+        });
+        attach(fallback);
+        return fallback;
+      } catch (err2) {
+        console.error('getUserMedia fallback failed:', err2);
+        throw err2;
+      }
     }
   }, [isVideoEnabled, isAudioEnabled, selectedAudioInputId, selectedVideoInputId]);
 
@@ -191,7 +205,6 @@ export const MediaProvider = ({ children }) => {
     isScreenSharing,
     localVideoRef,
     roomContext,
-    // device selection
     selectedAudioInputId,
     selectedVideoInputId,
     availableAudioInputs,
@@ -200,7 +213,6 @@ export const MediaProvider = ({ children }) => {
     setAudioInputDevice: async (id) => { setSelectedAudioInputId(id); await restartCamera(); },
     setVideoInputDevice: async (id) => { setSelectedVideoInputId(id); await restartCamera(); },
     restartCamera,
-    // media controls
     startCamera,
     stopCamera,
     toggleVideo,

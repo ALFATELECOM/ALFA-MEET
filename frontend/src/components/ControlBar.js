@@ -44,6 +44,10 @@ const ControlBar = ({ onToggleChat, onToggleParticipants, onLeaveRoom }) => {
     enumerateDevices?.();
   }, [enumerateDevices]);
 
+  const [showAudioMenu, setShowAudioMenu] = React.useState(false);
+  const [showVideoMenu, setShowVideoMenu] = React.useState(false);
+  const [showInfoMenu, setShowInfoMenu] = React.useState(false);
+
   const controlButtons = [
     {
       icon: MicrophoneIcon,
@@ -111,6 +115,40 @@ const ControlBar = ({ onToggleChat, onToggleParticipants, onLeaveRoom }) => {
         );
       })}
       
+      {/* Audio dropdown */}
+      <div className="relative">
+        <button onClick={() => setShowAudioMenu(v => !v)} className="px-2 text-xs text-gray-300">^</button>
+        {showAudioMenu && (
+          <div className="absolute bottom-12 left-0 bg-white rounded shadow-lg p-2 w-56 z-50">
+            <div className="text-xs font-semibold text-gray-700 px-2 py-1">Select a microphone</div>
+            <div className="max-h-48 overflow-auto text-sm">
+              {availableAudioInputs?.map((d) => (
+                <button key={d.deviceId} onClick={() => { setAudioInputDevice?.(d.deviceId); setShowAudioMenu(false); }} className="w-full text-left px-2 py-1 hover:bg-gray-100">
+                  {d.label || 'Microphone'}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Video dropdown */}
+      <div className="relative">
+        <button onClick={() => setShowVideoMenu(v => !v)} className="px-2 text-xs text-gray-300">^</button>
+        {showVideoMenu && (
+          <div className="absolute bottom-12 left-0 bg-white rounded shadow-lg p-2 w-56 z-50">
+            <div className="text-xs font-semibold text-gray-700 px-2 py-1">Select a camera</div>
+            <div className="max-h-48 overflow-auto text-sm">
+              {availableVideoInputs?.map((d) => (
+                <button key={d.deviceId} onClick={() => { setVideoInputDevice?.(d.deviceId); setShowVideoMenu(false); }} className="w-full text-left px-2 py-1 hover:bg-gray-100">
+                  {d.label || 'Camera'}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Device selectors */}
       <div className="ml-2 flex items-center space-x-2">
         {availableVideoInputs && availableVideoInputs.length > 0 && (
