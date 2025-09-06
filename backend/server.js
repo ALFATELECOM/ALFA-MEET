@@ -97,6 +97,9 @@ const raisedHands = new Map();
 const blockedUsers = new Map();
 const suspendedUsers = new Map();
 const coHosts = new Map();
+// Meetings storage for admin API
+const meetings = new Map();
+const meetingsByRoomId = new Map();
 
 // Room types
 const ROOM_TYPES = {
@@ -304,6 +307,100 @@ app.get('/debug', (req, res) => {
     corsOrigins: corsOptions.origin,
     timestamp: new Date().toISOString()
   });
+});
+
+// --- Admin & Meetings API (for dashboard) ---
+
+// Basic demo login endpoint
+app.post('/api/admin/login', (req, res) => {
+  const { email, password } = req.body || {};
+  if ((email === 'admin@zoom.com' && password === 'admin123') || process.env.SKIP_ADMIN_AUTH === 'true') {
+    return res.json({
+      success: true,
+      user: {
+        id: 'admin-1',
+        email: email || 'admin@zoom.com',
+        name: 'Admin User',
+        role: 'admin'
+      }
+    });
+  }
+  res.status(401).json({ success: false, error: 'Invalid credentials' });
+});
+
+// Create a meeting
+app.post('/api/meetings', (req, res) => {
+  try {
+    const payload = req.body || {};
+    const id = payload.id || `meeting-${Date.now()}`;
+    const roomId = payload.roomId || Math.random().toString(36).substring(2, 10);
+    const meeting = {
+      id,
+      title: payload.title || 'Meeting',
+      description: payload.description || '',
+      scheduledFor: payload.scheduledFor || new Date().toISOString(),
+      duration: typeof payload.duration === 'number' ? payload.duration : 60,
+      maxParticipants: typeof payload.maxParticipants === 'number' ? payload.maxParticipants : 10,
+      createdBy: payload.createdBy || 'Admin',
+      createdAt: new Date().toISOString(),
+      status: 'scheduled',
+      roomId,
+      allowScreenShare: payload.allowScreenShare !== false,
+      allowChat: payload.allowChat !== false,
+      isRecurring: !!payload.isRecurring,
+      requirePassword: !!payload.requirePassword,
+      password: payload.password || '',
+      waitingRoom: !!payload.waitingRoom,
+      meetingType: payload.meetingType || ROOM_TYPES.MEETING
+    };
+    meetings.set(id, meeting);
+    meetingsByRoomId.set(roomId, meeting);
+    res.json({ success: true, meeting });
+  } catch (e) {
+    res.status(500).json({ success: false, error: 'Failed to create meeting' });
+  }
+});
+
+// List meetings
+app.get('/api/meetings', (req, res) => {
+  res.json({ success: true, meetings: Array.from(meetings.values()) });
+});
+
+// Start a meeting
+app.post('/api/meetings/:meetingId/start', (req, res) => {
+  const { meetingId } = req.params;
+  const meeting = meetings.get(meetingId);
+  if (!meeting) return res.status(404).json({ success: false, error: 'Meeting not found' });
+  meeting.status = 'active';
+  meeting.startedAt = new Date().toISOString();
+  meetings.set(meetingId, meeting);
+  res.json({ success: true, meeting });
+});
+
+// End a meeting
+app.post('/api/meetings/:meetingId/end', (req, res) => {
+  const { meetingId } = req.params;
+  const meeting = meetings.get(meetingId);
+  if (!meeting) return res.status(404).json({ success: false, error: 'Meeting not found' });
+  meeting.status = 'ended';
+  meeting.endedAt = new Date().toISOString();
+  meetings.set(meetingId, meeting);
+  // Close room if exists
+  const roomId = meeting.roomId;
+  if (rooms.has(roomId)) {
+    io.to(roomId).emit('room-ended', { timestamp: new Date().toISOString() });
+    rooms.delete(roomId);
+  }
+  res.json({ success: true, meeting });
+});
+
+// Active rooms summary for admin syncing
+app.get('/api/rooms/active', (req, res) => {
+  const list = Array.from(rooms.keys()).map(roomId => ({
+    roomId,
+    meetingId: meetingsByRoomId.get(roomId)?.id || null
+  }));
+  res.json({ rooms: list });
 });
 
 app.post('/api/rooms', (req, res) => {
@@ -577,7 +674,7 @@ io.on('connection', (socket) => {
     const room = rooms.get(roomId);
     if (room) {
       room.updateParticipant(userId, { isVideoMuted: isMuted });
-      socket.to(roomId).emit('user-video-toggled', { userId, isMuted });
+      io.to(roomId).emit('user-video-toggled', { userId, isMuted });
     }
   });
 
