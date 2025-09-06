@@ -180,7 +180,7 @@ const MobileOptimizedRoom = () => {
 
   return (
     <div 
-      className={`h-screen bg-gray-900 flex flex-col relative overflow-hidden ${
+      className={`app-height bg-gray-900 flex flex-col relative overflow-hidden ${
         orientation === 'landscape' ? 'landscape' : 'portrait'
       }`}
       onClick={() => setShowControls(true)}
@@ -197,7 +197,7 @@ const MobileOptimizedRoom = () => {
         </div>
       )}
       {/* Header - Mobile Optimized */}
-      <div className={`bg-gray-800 text-white px-4 py-2 flex justify-between items-center transition-transform duration-300 ${
+      <div className={`bg-gray-800 text-white px-4 py-2 safe-top flex justify-between items-center transition-transform duration-300 ${
         !showControls && !showChat && !showParticipants ? '-translate-y-full' : 'translate-y-0'
       }`}>
         <div className="flex items-center space-x-2">
@@ -254,7 +254,7 @@ const MobileOptimizedRoom = () => {
         </div>
 
         {/* Mobile Control Bar */}
-        <div className={`absolute bottom-0 left-0 right-0 bg-gray-800 bg-opacity-95 p-4 transition-transform duration-300 ${
+        <div className={`absolute bottom-0 left-0 right-0 bg-gray-800 bg-opacity-95 p-4 safe-bottom transition-transform duration-300 ${
           !showControls ? 'translate-y-full' : 'translate-y-0'
         }`}>
           <div className="flex justify-center space-x-4">

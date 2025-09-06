@@ -265,3 +265,4 @@ const SimpleMeetingList = () => {
 };
 
 export default SimpleMeetingList;
+

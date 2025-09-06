@@ -6,6 +6,7 @@ import { useMeetingFeatures } from '../context/MeetingFeaturesContext';
 import VideoGrid from '../components/VideoGrid';
 import WebRTCVideoGrid from '../components/WebRTCVideoGrid';
 import EnhancedControlBar from '../components/EnhancedControlBar';
+import MobileOptimizedRoom from '../components/MobileOptimizedRoom';
 import Chat from '../components/Chat';
 import ParticipantsList from '../components/ParticipantsList';
 import FloatingReactions from '../components/FloatingReactions';
@@ -30,6 +31,20 @@ const RoomPage = () => {
   const [socketConnected, setSocketConnected] = useState(false);
   
   const { meetingMode } = useMeetingFeatures();
+
+  // Detect mobile/tablet to render a dedicated mobile experience
+  const [isMobileView, setIsMobileView] = useState(false);
+  useEffect(() => {
+    const mql = window.matchMedia('(pointer: coarse), (max-width: 820px)');
+    const update = () => setIsMobileView(mql.matches);
+    update();
+    mql.addEventListener?.('change', update);
+    window.addEventListener('orientationchange', update);
+    return () => {
+      mql.removeEventListener?.('change', update);
+      window.removeEventListener('orientationchange', update);
+    };
+  }, []);
 
   useEffect(() => {
     if (!socket) return;
@@ -228,8 +243,12 @@ const RoomPage = () => {
     }
   };
 
+  if (isMobileView) {
+    return <MobileOptimizedRoom />;
+  }
+
   return (
-    <div className="h-screen bg-gray-900 flex flex-col">
+    <div className="app-height bg-gray-900 flex flex-col">
       {/* Header */}
       <div className="bg-gray-800 text-white p-4 flex justify-between items-center">
         <div>

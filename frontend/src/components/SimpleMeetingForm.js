@@ -337,3 +337,4 @@ const SimpleMeetingForm = ({ isOpen, onClose }) => {
 };
 
 export default SimpleMeetingForm;
+

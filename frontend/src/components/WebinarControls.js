@@ -272,3 +272,4 @@ const WebinarControls = ({
 };
 
 export default WebinarControls;
+

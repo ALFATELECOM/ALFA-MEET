@@ -158,3 +158,4 @@ export const SimpleMeetingProvider = ({ children }) => {
 };
 
 export default SimpleMeetingProvider;
+

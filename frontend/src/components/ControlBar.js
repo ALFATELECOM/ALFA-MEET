@@ -67,14 +67,14 @@ const ControlBar = ({ onToggleChat, onToggleParticipants, onLeaveRoom }) => {
   ];
 
   return (
-    <div className="flex items-center space-x-2 bg-gray-800 rounded-lg p-2">
+    <div className="flex items-center bg-gray-800 rounded-lg p-2 space-x-2 sm:space-x-2">
       {controlButtons.map((button, index) => {
         const Icon = button.icon;
         return (
           <button
             key={index}
             onClick={button.onClick}
-            className={`p-3 rounded-lg transition duration-200 ${
+            className={`p-3 rounded-lg transition duration-200 touch-target ${
               button.active === false 
                 ? 'bg-gray-700 hover:bg-gray-600 text-white'
                 : button.active
@@ -89,7 +89,7 @@ const ControlBar = ({ onToggleChat, onToggleParticipants, onLeaveRoom }) => {
       })}
       
       {/* Leave Room Button */}
-      <div className="ml-4 border-l border-gray-600 pl-4">
+      <div className="ml-4 border-l border-gray-600 pl-4 hidden xs:block sm:block">
         <button
           onClick={onLeaveRoom}
           className="p-3 bg-red-600 hover:bg-red-700 text-white rounded-lg transition duration-200"

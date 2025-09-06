@@ -276,8 +276,8 @@ const WebRTCVideoGrid = ({ participants = [], roomId, userId, userName, isMobile
   })();
 
   return (
-    <div className="h-full p-4">
-      <div className={`grid ${getGridClass()} gap-4 h-full`}>
+    <div className="h-full p-2 sm:p-4">
+      <div className={`grid ${getGridClass()} gap-2 sm:gap-4 h-full`}>
         {/* Local Video */}
         <div className="relative bg-gray-800 rounded-lg overflow-hidden group aspect-video">
           <video
@@ -345,14 +345,14 @@ const WebRTCVideoGrid = ({ participants = [], roomId, userId, userName, isMobile
               
               {/* Placeholder when no video */}
               {(!hasRemoteStream || isVideoMuted) && (
-                <div className="absolute inset-0 bg-gradient-to-br from-gray-700 to-gray-800 flex items-center justify-center">
+                <div className="absolute inset-0 bg-gradient-to-br from-gray-700 to-gray-800 flex items-center justify-center p-2">
                   <div className="text-center">
-                    <div className="w-16 h-16 bg-indigo-600 rounded-full flex items-center justify-center mx-auto mb-2">
+                    <div className="w-14 h-14 sm:w-16 sm:h-16 bg-indigo-600 rounded-full flex items-center justify-center mx-auto mb-2">
                       <span className="text-white text-xl font-bold">
                         {participantName.charAt(0).toUpperCase()}
                       </span>
                     </div>
-                    <p className="text-white text-sm font-medium truncate max-w-[80%] mx-auto">{participantName}</p>
+                    <p className="text-white text-xs sm:text-sm font-medium truncate max-w-[90%] mx-auto">{participantName}</p>
                     <p className="text-gray-300 text-xs">{!hasRemoteStream ? 'Connecting...' : 'Camera Off'}</p>
                   </div>
                 </div>
@@ -366,7 +366,7 @@ const WebRTCVideoGrid = ({ participants = [], roomId, userId, userName, isMobile
               </div>
               
               {/* Audio/Video indicators */}
-              <div className="absolute top-2 right-2 flex space-x-1">
+              <div className="absolute top-1 right-1 sm:top-2 sm:right-2 flex space-x-1">
                 <div className={`p-1 rounded-full ${!isAudioMuted ? 'bg-green-600' : 'bg-red-600'}`}>
                   <MicrophoneIcon className={`w-3 h-3 text-white ${isAudioMuted ? 'opacity-50' : ''}`} />
                 </div>
@@ -376,7 +376,7 @@ const WebRTCVideoGrid = ({ participants = [], roomId, userId, userName, isMobile
               </div>
               
               {/* Connection / Sharing status */}
-              <div className="absolute top-2 left-2 flex items-center space-x-2">
+              <div className="absolute top-1 left-1 sm:top-2 sm:left-2 flex items-center space-x-1 sm:space-x-2">
                 {isSharing && (
                   <div className="bg-blue-600 text-white px-2 py-1 rounded text-xs font-medium">
                     Sharing Screen
@@ -391,7 +391,7 @@ const WebRTCVideoGrid = ({ participants = [], roomId, userId, userName, isMobile
               
               {/* Screen sharing indicator */}
               {participant.isScreenSharing && (
-                <div className="absolute bottom-2 right-2 bg-blue-600 text-white px-2 py-1 rounded text-xs font-medium">
+                <div className="absolute bottom-1 right-1 sm:bottom-2 sm:right-2 bg-blue-600 text-white px-2 py-1 rounded text-xs font-medium">
                   📺 Sharing Screen
                 </div>
               )}
