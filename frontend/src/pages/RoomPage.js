@@ -51,10 +51,7 @@ const RoomPage = () => {
     // Join room
     socket.emit('join-room', { roomId, userName, userId });
     
-    // Check if user is host (first to join)
-    if (participants.length === 0) {
-      setIsHost(true);
-    }
+    // Do not assume host locally; wait for server role in joined-room
 
     // Socket connection status
     socket.on('connect', () => {
