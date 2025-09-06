@@ -405,13 +405,25 @@ io.on('connection', (socket) => {
     io.to(roomId).emit('user-video-toggled', { userId, isMuted: !!isMuted });
   });
 
+  // Screen share markers
+  socket.on('start-screen-share', ({ roomId, userId }) => {
+    const room = rooms.get(roomId); if (!room) return;
+    room.updateParticipant(userId, { isScreenSharing: true });
+    io.to(roomId).emit('room-participants', { participants: room.getParticipants(), count: room.participants.size, timestamp: new Date().toISOString() });
+  });
+  socket.on('stop-screen-share', ({ roomId, userId }) => {
+    const room = rooms.get(roomId); if (!room) return;
+    room.updateParticipant(userId, { isScreenSharing: false });
+    io.to(roomId).emit('room-participants', { participants: room.getParticipants(), count: room.participants.size, timestamp: new Date().toISOString() });
+  });
+
   // Disconnect cleanup
   socket.on('disconnect', () => {
     const user = users.get(socket.id); if (!user) return; const { userId, roomId } = user; const room = rooms.get(roomId); if (!room) { users.delete(socket.id); return; }
-        room.removeParticipant(userId);
+    room.removeParticipant(userId);
     socket.to(roomId).emit('user-left', { userId, participantCount: room.participants.size, timestamp: new Date().toISOString() });
     io.to(roomId).emit('room-participants', { participants: room.getParticipants(), count: room.participants.size, timestamp: new Date().toISOString() });
-      users.delete(socket.id);
+    users.delete(socket.id);
   });
 });
 
