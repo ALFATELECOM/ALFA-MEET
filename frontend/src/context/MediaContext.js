@@ -125,8 +125,33 @@ export const MediaProvider = ({ children }) => {
   const forceMute = useCallback(() => { if (localStream) { const t = localStream.getAudioTracks()[0]; if (t) { t.enabled = false; setIsAudioEnabled(false); } } }, [localStream]);
   const forceUnmute = useCallback(() => { if (localStream) { const t = localStream.getAudioTracks()[0]; if (t) { t.enabled = true; setIsAudioEnabled(true); } } }, [localStream]);
 
-  const startScreenShare = useCallback(async () => { const s = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true }); setIsScreenSharing(true); return s; }, []);
-  const stopScreenShare = useCallback(() => { setIsScreenSharing(false); }, []);
+  const startScreenShare = useCallback(async () => {
+    try {
+      const screenStream = await navigator.mediaDevices.getDisplayMedia({
+        video: true,
+        audio: true
+      });
+      setIsScreenSharing(true);
+      try {
+        if (socket && roomContext.roomId && roomContext.userId) {
+          socket.emit('start-screen-share', { roomId: roomContext.roomId, userId: roomContext.userId });
+        }
+      } catch {}
+      return screenStream;
+    } catch (error) {
+      console.error('Error starting screen share:', error);
+      throw error;
+    }
+  }, [socket, roomContext]);
+
+  const stopScreenShare = useCallback(() => {
+    setIsScreenSharing(false);
+    try {
+      if (socket && roomContext.roomId && roomContext.userId) {
+        socket.emit('stop-screen-share', { roomId: roomContext.roomId, userId: roomContext.userId });
+      }
+    } catch {}
+  }, [socket, roomContext]);
 
   const setRoomContext = useCallback((roomId, userId) => { const v = { roomId: roomId || null, userId: userId || null }; setRoomContextState(v); try { sessionStorage.setItem('roomContext', JSON.stringify(v)); } catch {} }, []);
 
