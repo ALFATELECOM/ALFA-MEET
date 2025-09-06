@@ -261,6 +261,8 @@ const RoomPage = () => {
             <ParticipantsList
               participants={participants}
               onClose={() => setShowParticipants(false)}
+              roomId={roomId}
+              isHost={isHost}
             />
           </div>
         )}

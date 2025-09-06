@@ -1,7 +1,19 @@
 import React from 'react';
 import { XMarkIcon, UserIcon, MicrophoneIcon } from '@heroicons/react/24/outline';
+import { useSocket } from '../context/SocketContext';
 
-const ParticipantsList = ({ participants = [], onClose }) => {
+const ParticipantsList = ({ participants = [], onClose, roomId, isHost = false }) => {
+  const { socket } = useSocket();
+  const handleAdminToggle = (participant) => {
+    if (!socket || !roomId || !isHost) return;
+    const targetId = participant.id || participant.userId;
+    if (!targetId) return;
+    if (participant.isAudioMuted) {
+      socket.emit('unmute-participant', { roomId, targetUserId: targetId });
+    } else {
+      socket.emit('mute-participant', { roomId, targetUserId: targetId });
+    }
+  };
   console.log('ParticipantsList participants:', participants);
   
   return (
@@ -56,13 +68,14 @@ const ParticipantsList = ({ participants = [], onClose }) => {
                   </p>
                 </div>
                 <div className="flex items-center space-x-2">
-                  <MicrophoneIcon className={`h-4 w-4 ${
-                    !isAudioMuted ? 'text-green-600' : 'text-red-600'
-                  }`} />
-                  {participant.isVideoMuted && (
-                    <svg className="w-4 h-4 text-red-600" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M3.707 2.293a1 1 0 00-1.414 1.414l14 14a1 1 0 001.414-1.414l-1.473-1.473A2 2 0 0017 14v-2a1 1 0 10-2 0v2a2 2 0 01-2 2H5.414l-1.707-1.707zM2 6a2 2 0 012-2h6a2 2 0 012 2v2a1 1 0 102 0V6a4 4 0 00-4-4H4a4 4 0 00-4 4v4a4 4 0 004 4h2.343L2 9.657V6z" clipRule="evenodd" />
-                    </svg>
+                  <MicrophoneIcon className={`h-4 w-4 ${!isAudioMuted ? 'text-green-600' : 'text-red-600'}`} />
+                  {isHost && (
+                    <button
+                      onClick={() => handleAdminToggle(participant)}
+                      className={`px-2 py-1 text-xs rounded ${isAudioMuted ? 'bg-green-600 text-white' : 'bg-red-600 text-white'}`}
+                    >
+                      {isAudioMuted ? 'Unmute' : 'Mute'}
+                    </button>
                   )}
                 </div>
               </div>
