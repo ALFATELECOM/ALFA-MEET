@@ -290,20 +290,20 @@ const WebRTCVideoGrid = ({ participants = [], roomId, userId, userName, isMobile
     };
   };
 
-  // Ensure remote peers stop receiving audio when muted on mobile (sender-level enforcement)
+  // Keep audio sending state in sync with local track without detaching sender (more robust across devices)
   useEffect(() => {
     if (!localStream) return;
+    const audioTrack = localStream.getAudioTracks()[0];
     peerConnections.forEach((pc) => {
       try {
         const audioSender = pc.getSenders && pc.getSenders().find(s => s.track && s.track.kind === 'audio');
         if (!audioSender) return;
-        if (!isAudioEnabled) {
-          audioSender.replaceTrack(null).catch(() => {});
-        } else {
-          const audioTrack = localStream.getAudioTracks()[0];
-          if (audioTrack) {
+        if (audioTrack) {
+          // Ensure sender is bound to the current track
+          if (audioSender.track !== audioTrack) {
             audioSender.replaceTrack(audioTrack).catch(() => {});
           }
+          audioTrack.enabled = isAudioEnabled;
         }
       } catch {}
     });
