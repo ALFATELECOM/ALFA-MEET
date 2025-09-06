@@ -19,6 +19,7 @@ export const MediaProvider = ({ children }) => {
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [isForcedMuted, setIsForcedMuted] = useState(false);
   const localVideoRef = useRef(null);
+  const previousCameraStreamRef = useRef(null);
   const [roomContext, setRoomContextState] = useState({ roomId: null, userId: null });
 
   const [selectedAudioInputId, setSelectedAudioInputId] = useState(null);
@@ -127,6 +128,10 @@ export const MediaProvider = ({ children }) => {
       if (!at) return;
     }
     const track = localStream.getAudioTracks()[0];
+    if (isForcedMuted && track && track.enabled === false) {
+      alert('You are muted by the host');
+      return;
+    }
     const nextEnabled = !(track?.enabled);
     if (track) track.enabled = nextEnabled;
     setIsAudioEnabled(nextEnabled);
@@ -135,7 +140,7 @@ export const MediaProvider = ({ children }) => {
         socket.emit('toggle-audio', { roomId: roomContext.roomId, userId: roomContext.userId, isMuted: !nextEnabled });
       }
     } catch {}
-  }, [localStream, socket, roomContext, startCamera, restartCamera]);
+  }, [localStream, socket, roomContext, startCamera, restartCamera, isForcedMuted]);
 
   const forceMute = useCallback(() => { setIsForcedMuted(true); if (localStream) { const t = localStream.getAudioTracks()[0]; if (t) { t.enabled = false; setIsAudioEnabled(false); } } }, [localStream]);
   const forceUnmute = useCallback(async () => {
@@ -151,22 +156,24 @@ export const MediaProvider = ({ children }) => {
 
   const startScreenShare = useCallback(async () => {
     try {
-      const screenStream = await navigator.mediaDevices.getDisplayMedia({
-        video: true,
-        audio: true
-      });
+      const s = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+      // Save current camera stream and switch local stream to screen
+      previousCameraStreamRef.current = localStream;
       setIsScreenSharing(true);
+      setLocalStream(s);
+      if (localVideoRef.current) localVideoRef.current.srcObject = s;
+      try { const t = s.getVideoTracks()[0]; if (t) { t.onended = () => { try { setIsScreenSharing(false); if (previousCameraStreamRef.current) { setLocalStream(previousCameraStreamRef.current); if (localVideoRef.current) localVideoRef.current.srcObject = previousCameraStreamRef.current; previousCameraStreamRef.current = null; } else { startCamera().catch(()=>{}); } } catch {} }; } } catch {}
       try {
         if (socket && roomContext.roomId && roomContext.userId) {
           socket.emit('start-screen-share', { roomId: roomContext.roomId, userId: roomContext.userId });
         }
       } catch {}
-      return screenStream;
+      return s;
     } catch (error) {
       console.error('Error starting screen share:', error);
       throw error;
     }
-  }, [socket, roomContext]);
+  }, [socket, roomContext, localStream, startCamera]);
 
   const stopScreenShare = useCallback(() => {
     setIsScreenSharing(false);
@@ -175,7 +182,16 @@ export const MediaProvider = ({ children }) => {
         socket.emit('stop-screen-share', { roomId: roomContext.roomId, userId: roomContext.userId });
       }
     } catch {}
-  }, [socket, roomContext]);
+    // Restore previous camera stream if available
+    const prev = previousCameraStreamRef.current;
+    if (prev) {
+      setLocalStream(prev);
+      if (localVideoRef.current) localVideoRef.current.srcObject = prev;
+      previousCameraStreamRef.current = null;
+    } else {
+      startCamera().catch(()=>{});
+    }
+  }, [socket, roomContext, startCamera]);
 
   const setRoomContext = useCallback((roomId, userId) => { const v = { roomId: roomId || null, userId: userId || null }; setRoomContextState(v); try { sessionStorage.setItem('roomContext', JSON.stringify(v)); } catch {} }, []);
 
