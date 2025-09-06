@@ -65,6 +65,27 @@ export const MediaProvider = ({ children }) => {
     }
   }, [localStream]);
 
+  // Force mute/unmute for admin actions
+  const forceMute = useCallback(() => {
+    if (localStream) {
+      const audioTrack = localStream.getAudioTracks()[0];
+      if (audioTrack) {
+        audioTrack.enabled = false;
+        setIsAudioEnabled(false);
+      }
+    }
+  }, [localStream]);
+
+  const forceUnmute = useCallback(() => {
+    if (localStream) {
+      const audioTrack = localStream.getAudioTracks()[0];
+      if (audioTrack) {
+        audioTrack.enabled = true;
+        setIsAudioEnabled(true);
+      }
+    }
+  }, [localStream]);
+
   const startScreenShare = useCallback(async () => {
     try {
       const screenStream = await navigator.mediaDevices.getDisplayMedia({
@@ -105,6 +126,8 @@ export const MediaProvider = ({ children }) => {
     stopCamera,
     toggleVideo,
     toggleAudio,
+    forceMute,
+    forceUnmute,
     startScreenShare,
     stopScreenShare,
     setRoomContext

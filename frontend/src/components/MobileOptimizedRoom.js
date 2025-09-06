@@ -172,9 +172,8 @@ const MobileOptimizedRoom = () => {
       if (totalParticipants <= 4) return 'grid-cols-2 grid-rows-2';
       return 'grid-cols-3 grid-rows-2';
     } else {
-      if (totalParticipants === 1) return 'grid-cols-1';
-      if (totalParticipants <= 4) return 'grid-cols-1 grid-rows-4';
-      return 'grid-cols-2 grid-rows-3';
+      // Portrait on mobile: single column scroll for better readability
+      return 'grid-cols-1 auto-rows-[minmax(180px,_auto)]';
     }
   };
 
@@ -242,7 +241,7 @@ const MobileOptimizedRoom = () => {
       </div>
 
       {/* Video Grid - Mobile Optimized */}
-      <div className="flex-1 relative">
+      <div className="flex-1 relative overflow-y-auto">
         <div className={`grid ${getVideoGridClass()} gap-2 h-full p-2`}>
           <WebRTCVideoGrid 
             participants={participants}

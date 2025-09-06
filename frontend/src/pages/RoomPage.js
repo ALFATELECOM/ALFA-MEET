@@ -18,7 +18,7 @@ const RoomPage = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { socket } = useSocket();
-  const { startCamera, setRoomContext } = useMedia();
+  const { startCamera, setRoomContext, forceMute, forceUnmute } = useMedia();
   
   const [userName] = useState(location.state?.userName || 'Anonymous');
   const [userId] = useState(`user-${Date.now()}-${Math.random()}`);
@@ -160,6 +160,30 @@ const RoomPage = () => {
       console.error('Socket error:', error);
     });
 
+    // Admin forces
+    socket.on('force-mute', () => {
+      try { forceMute(); } catch (e) { console.error(e); }
+    });
+    socket.on('force-unmute', () => {
+      try { forceUnmute(); } catch (e) { console.error(e); }
+    });
+
+    // Reflect toggles in UI
+    socket.on('user-audio-toggled', ({ userId: targetId, isMuted }) => {
+      setParticipants(prev => prev.map(p => {
+        const pid = p.id || p.userId;
+        if (pid === targetId) { return { ...p, isAudioMuted: isMuted }; }
+        return p;
+      }));
+    });
+
+    // React to admin force mute/unmute
+    socket.on('force-mute', () => {
+      try {
+        const { forceMute } = require('../context/MediaContext');
+      } catch {}
+    });
+
     return () => {
       socket.off('joined-room');
       socket.off('user-joined');
@@ -168,10 +192,15 @@ const RoomPage = () => {
       socket.off('new-message');
       socket.off('room-ended');
       socket.off('error');
+      socket.off('force-mute');
+      socket.off('force-unmute');
       socket.off('join-rejected');
       socket.off('host-transferred');
       socket.off('connect');
       socket.off('disconnect');
+      socket.off('force-mute');
+      socket.off('force-unmute');
+      socket.off('user-audio-toggled');
     };
   }, [socket, roomId, userName, navigate, startCamera]);
 
