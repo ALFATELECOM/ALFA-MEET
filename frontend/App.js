@@ -17,16 +17,27 @@ function App() {
   return (
     <div className="App">
       <Router>
-        <SocketProvider>
-          <MediaProvider>
-            <Routes>
-              <Route path="/" element={<ZoomHomePage />} />
-              <Route path="/join/:roomId" element={<JoinPage />} />
-              <Route path="/room/:roomId" element={<RoomPage />} />
-              <Route path="/mobile/:roomId" element={<MobileOptimizedRoom />} />
-            </Routes>
-          </MediaProvider>
-        </SocketProvider>
+        <AdminProvider>
+          <SocketProvider>
+            <MediaProvider>
+              <Routes>
+                <Route path="/" element={<ZoomHomePage />} />
+                <Route path="/join/:roomId" element={<JoinPage />} />
+                <Route path="/room/:roomId" element={<RoomPage />} />
+                <Route path="/mobile/:roomId" element={<MobileOptimizedRoom />} />
+                <Route path="/admin/login" element={<AdminLogin />} />
+                <Route
+                  path="/admin/dashboard"
+                  element={
+                    <ProtectedRoute>
+                      <AdminDashboard />
+                    </ProtectedRoute>
+                  }
+                />
+              </Routes>
+            </MediaProvider>
+          </SocketProvider>
+        </AdminProvider>
       </Router>
     </div>
   );
