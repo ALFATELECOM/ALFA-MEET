@@ -311,6 +311,20 @@ app.get('/api/rooms/active', (req, res) => {
   res.json({ rooms: list });
 });
 
+// Meeting meta by room id
+app.get('/api/meetings/room/:roomId', (req, res) => {
+  const { roomId } = req.params;
+  const meeting = meetingsByRoomId.get(roomId);
+  if (!meeting) return res.status(404).json({ success: false, error: 'Meeting not found' });
+  res.json({ success: true, meeting: {
+    id: meeting.id,
+    roomId: meeting.roomId,
+    title: meeting.title,
+    requirePassword: !!meeting.requirePassword,
+    waitingRoom: !!meeting.waitingRoom
+  }});
+});
+
 // Create room helpers (kept)
 app.post('/api/rooms', (req, res) => {
   const { name, type, hostId, hostName } = req.body;
