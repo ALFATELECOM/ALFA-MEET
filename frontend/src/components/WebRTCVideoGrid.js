@@ -326,7 +326,7 @@ const WebRTCVideoGrid = ({ participants = [], roomId, userId, userName, isMobile
     });
   }, [isAudioEnabled, isForcedMuted, localStream, peerConnections]);
 
-  // Screen share handling: if local stream changes (e.g., to display media), update senders' video track
+  // Screen share handling: if local stream changes (e.g., camera -> screen), update senders' video track
   useEffect(() => {
     if (!localStream) return;
     const vTrack = localStream.getVideoTracks()[0];
