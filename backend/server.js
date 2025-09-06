@@ -403,6 +403,30 @@ io.on('connection', (socket) => {
   socket.on('toggle-video', ({ roomId, userId, isMuted }) => { const room = rooms.get(roomId); if (!room) return; room.updateParticipant(userId, { isVideoMuted: !!isMuted }); io.to(roomId).emit('user-video-toggled', { userId, isMuted: !!isMuted }); console.log(`📷 VIDEO: room=${roomId} user=${userId} muted=${!!isMuted}`); });
   socket.on('end-room', ({ roomId, hostId }) => { const room = rooms.get(roomId); if (room && room.hostId === hostId) { io.to(roomId).emit('room-ended', { timestamp: new Date().toISOString() }); rooms.delete(roomId); console.log(`🏁 END ROOM: room=${roomId} by host=${hostId}`); } });
 
+  // Admin: force mute/unmute a participant
+  socket.on('mute-participant', ({ roomId, targetUserId }) => {
+    const room = rooms.get(roomId);
+    if (!room) return;
+    const target = room.participants.get(targetUserId);
+    if (!target) return;
+      room.updateParticipant(targetUserId, { isAudioMuted: true });
+    io.to(roomId).emit('user-audio-toggled', { userId: targetUserId, isMuted: true });
+    // Direct signal to target to enforce locally
+    if (target.socketId) io.to(target.socketId).emit('force-mute');
+    console.log(`🛑 ADMIN MUTE: room=${roomId} target=${targetUserId}`);
+  });
+
+  socket.on('unmute-participant', ({ roomId, targetUserId }) => {
+    const room = rooms.get(roomId);
+    if (!room) return;
+    const target = room.participants.get(targetUserId);
+    if (!target) return;
+    room.updateParticipant(targetUserId, { isAudioMuted: false });
+    io.to(roomId).emit('user-audio-toggled', { userId: targetUserId, isMuted: false });
+    if (target.socketId) io.to(target.socketId).emit('force-unmute');
+    console.log(`✅ ADMIN UNMUTE: room=${roomId} target=${targetUserId}`);
+  });
+
   // Screen share markers
   socket.on('start-screen-share', ({ roomId, userId }) => { const room = rooms.get(roomId); if (!room) return; room.updateParticipant(userId, { isScreenSharing: true }); io.to(roomId).emit('room-participants', { participants: room.getParticipants(), count: room.participants.size, timestamp: new Date().toISOString() }); console.log(`🖥️ SHARE START: room=${roomId} user=${userId}`); });
   socket.on('stop-screen-share', ({ roomId, userId }) => { const room = rooms.get(roomId); if (!room) return; room.updateParticipant(userId, { isScreenSharing: false }); io.to(roomId).emit('room-participants', { participants: room.getParticipants(), count: room.participants.size, timestamp: new Date().toISOString() }); console.log(`🖥️ SHARE STOP: room=${roomId} user=${userId}`); });
