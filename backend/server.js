@@ -427,6 +427,31 @@ io.on('connection', (socket) => {
     console.log(`✅ ADMIN UNMUTE: room=${roomId} target=${targetUserId}`);
   });
 
+  // Admin: co-host management
+  socket.on('add-cohost', ({ roomId, targetUserId }) => {
+    const room = rooms.get(roomId);
+    if (!room) return;
+    const target = room.participants.get(targetUserId);
+    if (!target) return;
+    room.coHosts.add(targetUserId);
+    room.updateParticipant(targetUserId, { role: USER_ROLES.CO_HOST });
+    io.to(roomId).emit('room-participants', { participants: room.getParticipants(), count: room.participants.size, timestamp: new Date().toISOString() });
+    console.log(`⭐ ADD CO-HOST: room=${roomId} target=${targetUserId}`);
+  });
+
+  socket.on('remove-cohost', ({ roomId, targetUserId }) => {
+    const room = rooms.get(roomId);
+    if (!room) return;
+    const target = room.participants.get(targetUserId);
+    if (!target) return;
+    room.coHosts.delete(targetUserId);
+    // Demote to participant unless they are the host
+    const newRole = targetUserId === room.hostId ? USER_ROLES.HOST : USER_ROLES.PARTICIPANT;
+    room.updateParticipant(targetUserId, { role: newRole });
+    io.to(roomId).emit('room-participants', { participants: room.getParticipants(), count: room.participants.size, timestamp: new Date().toISOString() });
+    console.log(`⬇️ REMOVE CO-HOST: room=${roomId} target=${targetUserId}`);
+  });
+
   // Screen share markers
   socket.on('start-screen-share', ({ roomId, userId }) => { const room = rooms.get(roomId); if (!room) return; room.updateParticipant(userId, { isScreenSharing: true }); io.to(roomId).emit('room-participants', { participants: room.getParticipants(), count: room.participants.size, timestamp: new Date().toISOString() }); console.log(`🖥️ SHARE START: room=${roomId} user=${userId}`); });
   socket.on('stop-screen-share', ({ roomId, userId }) => { const room = rooms.get(roomId); if (!room) return; room.updateParticipant(userId, { isScreenSharing: false }); io.to(roomId).emit('room-participants', { participants: room.getParticipants(), count: room.participants.size, timestamp: new Date().toISOString() }); console.log(`🖥️ SHARE STOP: room=${roomId} user=${userId}`); });
