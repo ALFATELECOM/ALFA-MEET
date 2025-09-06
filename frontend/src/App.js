@@ -3,10 +3,6 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { SocketProvider } from './context/SocketContext';
 import { MediaProvider } from './context/MediaContext';
 import { AdminProvider } from './context/AdminContext';
-import { RewardsProvider } from './context/RewardsContext';
-import { ReactionsProvider } from './context/ReactionsContext';
-import { MeetingFeaturesProvider } from './context/MeetingFeaturesContext';
-import { SimpleMeetingProvider } from './context/SimpleMeetingContext';
 import HomePage from './pages/HomePage';
 import ZoomHomePage from './pages/ZoomHomePage';
 import JoinPage from './pages/JoinPage';
@@ -21,37 +17,16 @@ function App() {
   return (
     <div className="App">
       <Router>
-        <AdminProvider>
-          <SimpleMeetingProvider>
-            <RewardsProvider>
-              <ReactionsProvider>
-                <MeetingFeaturesProvider>
-                  <SocketProvider>
-                    <MediaProvider>
-                    <Routes>
-                      <Route path="/" element={<ZoomHomePage />} />
-                      <Route path="/classic" element={<HomePage />} />
-                      <Route path="/join/:roomId" element={<JoinPage />} />
-                      <Route path="/room/:roomId" element={<RoomPage />} />
-                      <Route path="/mobile/:roomId" element={<MobileOptimizedRoom />} />
-                      <Route path="/admin/login" element={<AdminLogin />} />
-                      <Route 
-                        path="/admin/dashboard" 
-                        element={
-                          <ProtectedRoute>
-                            <AdminDashboard />
-                          </ProtectedRoute>
-                        } 
-                      />
-                      <Route path="/simple" element={<SimpleMeetingDashboard />} />
-                    </Routes>
-                  </MediaProvider>
-                </SocketProvider>
-              </MeetingFeaturesProvider>
-            </ReactionsProvider>
-          </RewardsProvider>
-        </SimpleMeetingProvider>
-      </AdminProvider>
+        <SocketProvider>
+          <MediaProvider>
+            <Routes>
+              <Route path="/" element={<ZoomHomePage />} />
+              <Route path="/join/:roomId" element={<JoinPage />} />
+              <Route path="/room/:roomId" element={<RoomPage />} />
+              <Route path="/mobile/:roomId" element={<MobileOptimizedRoom />} />
+            </Routes>
+          </MediaProvider>
+        </SocketProvider>
       </Router>
     </div>
   );

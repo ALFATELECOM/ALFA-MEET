@@ -290,6 +290,25 @@ const WebRTCVideoGrid = ({ participants = [], roomId, userId, userName, isMobile
     };
   };
 
+  // Ensure remote peers stop receiving audio when muted on mobile (sender-level enforcement)
+  useEffect(() => {
+    if (!localStream) return;
+    peerConnections.forEach((pc) => {
+      try {
+        const audioSender = pc.getSenders && pc.getSenders().find(s => s.track && s.track.kind === 'audio');
+        if (!audioSender) return;
+        if (!isAudioEnabled) {
+          audioSender.replaceTrack(null).catch(() => {});
+        } else {
+          const audioTrack = localStream.getAudioTracks()[0];
+          if (audioTrack) {
+            audioSender.replaceTrack(audioTrack).catch(() => {});
+          }
+        }
+      } catch {}
+    });
+  }, [isAudioEnabled, localStream, peerConnections]);
+
   const getGridClass = () => {
     const totalParticipants = filteredParticipants.length + 1;
     const isSmall = viewportWidth <= 640 || isMobile;

@@ -2,16 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useLocation, useNavigate } from 'react-router-dom';
 import { useSocket } from '../context/SocketContext';
 import { useMedia } from '../context/MediaContext';
-import { useMeetingFeatures } from '../context/MeetingFeaturesContext';
-import VideoGrid from '../components/VideoGrid';
 import WebRTCVideoGrid from '../components/WebRTCVideoGrid';
-import EnhancedControlBar from '../components/EnhancedControlBar';
+import ControlBar from '../components/ControlBar';
 import MobileOptimizedRoom from '../components/MobileOptimizedRoom';
 import Chat from '../components/Chat';
 import ParticipantsList from '../components/ParticipantsList';
 import FloatingReactions from '../components/FloatingReactions';
-import RaiseHandIndicator from '../components/RaiseHandIndicator';
-import WebinarControls from '../components/WebinarControls';
 
 const RoomPage = () => {
   const { roomId } = useParams();
@@ -26,12 +22,9 @@ const RoomPage = () => {
   const [messages, setMessages] = useState([]);
   const [showChat, setShowChat] = useState(false);
   const [showParticipants, setShowParticipants] = useState(false);
-  const [showWebinarControls, setShowWebinarControls] = useState(false);
   const [isHost, setIsHost] = useState(false);
   const [socketConnected, setSocketConnected] = useState(false);
   
-  const { meetingMode } = useMeetingFeatures();
-
   // Detect mobile/tablet to render a dedicated mobile experience
   const [isMobileView, setIsMobileView] = useState(false);
   useEffect(() => {
@@ -82,8 +75,6 @@ const RoomPage = () => {
       if (data.success && data.participants) {
         setParticipants(data.participants);
         setMessages(data.chatHistory || []);
-        
-        // Check if user is host based on backend response
         const currentUser = data.participants.find(p => p.id === userId || p.userId === userId);
         if (currentUser && currentUser.role === 'host') {
           setIsHost(true);
@@ -108,43 +99,23 @@ const RoomPage = () => {
 
     socket.on('user-left', (data) => {
       console.log('👋 User left:', data);
-      setParticipants(prev => {
-        const filtered = prev.filter(p => 
-          p.id !== data.userId && p.userId !== data.userId
-        );
-        console.log('Participants after user left:', filtered);
-        return filtered;
-      });
+      setParticipants(prev => prev.filter(p => p.id !== data.userId && p.userId !== data.userId));
     });
 
     socket.on('room-participants', (data) => {
-      console.log('📊 Room participants updated:', data);
       if (data.participants) {
         setParticipants(data.participants);
-        console.log('Updated participants list:', data.participants);
       }
     });
 
-    // Handle join rejection (blocked users)
     socket.on('join-rejected', (data) => {
       console.error('❌ Join rejected:', data.reason);
       alert(`Cannot join room: ${data.reason}`);
       navigate('/');
     });
 
-    // Handle host transfer
-    socket.on('host-transferred', (data) => {
-      console.log('👑 Host transferred to:', data.newHostName);
-      if (data.newHostId === userId) {
-        setIsHost(true);
-        console.log('🎯 You are now the host');
-      }
-    });
-
     socket.on('new-message', (message) => {
-      console.log('New message:', message);
       setMessages(prev => {
-        // Avoid duplicate messages
         const exists = prev.find(m => m.id === message.id || 
           (m.timestamp === message.timestamp && m.message === message.message && m.userId === message.userId));
         if (exists) return prev;
@@ -175,7 +146,6 @@ const RoomPage = () => {
         if (pid === targetId) { return { ...p, isAudioMuted: isMuted }; }
         return p;
       }));
-      // If this event targets current user, enforce local track state
       if (targetId === userId) {
         try { isMuted ? forceMute() : forceUnmute(); } catch (e) { console.error(e); }
       }
@@ -189,13 +159,6 @@ const RoomPage = () => {
       }));
     });
 
-    // React to admin force mute/unmute
-    socket.on('force-mute', () => {
-      try {
-        const { forceMute } = require('../context/MediaContext');
-      } catch {}
-    });
-
     return () => {
       socket.off('joined-room');
       socket.off('user-joined');
@@ -204,12 +167,6 @@ const RoomPage = () => {
       socket.off('new-message');
       socket.off('room-ended');
       socket.off('error');
-      socket.off('force-mute');
-      socket.off('force-unmute');
-      socket.off('join-rejected');
-      socket.off('host-transferred');
-      socket.off('connect');
-      socket.off('disconnect');
       socket.off('force-mute');
       socket.off('force-unmute');
       socket.off('user-audio-toggled');
@@ -226,12 +183,7 @@ const RoomPage = () => {
         userId,
         timestamp: new Date().toISOString()
       };
-      
-      console.log('Sending message:', messageData);
       socket.emit('send-message', messageData);
-      
-      // Don't add to local state immediately - wait for server confirmation
-      // This prevents duplicate messages
     }
   };
 
@@ -242,68 +194,19 @@ const RoomPage = () => {
     navigate('/');
   };
 
-  // Webinar control functions
-  const handleMuteParticipant = (targetUserId) => {
-    if (socket && isHost) {
-      socket.emit('mute-participant', { roomId, targetUserId, hostId: userId });
-    }
-  };
-
-  const handleUnmuteParticipant = (targetUserId) => {
-    if (socket && isHost) {
-      socket.emit('unmute-participant', { roomId, targetUserId, hostId: userId });
-    }
-  };
-
-  const handleRemoveParticipant = (targetUserId) => {
-    if (socket && isHost) {
-      socket.emit('remove-participant', { roomId, targetUserId, hostId: userId });
-    }
-  };
-
-  const handleBlockUser = (targetUserId, reason) => {
-    if (socket && isHost) {
-      socket.emit('block-user', { roomId, targetUserId, adminId: userId, reason });
-    }
-  };
-
-  const handleSuspendUser = (targetUserId, duration, reason) => {
-    if (socket && isHost) {
-      socket.emit('suspend-user', { roomId, targetUserId, adminId: userId, duration, reason });
-    }
-  };
-
-  const handleMakeCoHost = (targetUserId) => {
-    if (socket && isHost) {
-      socket.emit('add-cohost', { roomId, targetUserId, hostId: userId });
-    }
-  };
-
-  const handleRemoveCoHost = (targetUserId) => {
-    if (socket && isHost) {
-      socket.emit('remove-cohost', { roomId, targetUserId, hostId: userId });
-    }
-  };
-
   if (isMobileView) {
     return <MobileOptimizedRoom />;
   }
 
   return (
     <div className="app-height bg-gray-900 flex flex-col">
-      {/* Header */}
       <div className="bg-gray-800 text-white p-4 flex justify-between items-center">
         <div>
           <h1 className="text-lg font-semibold flex items-center space-x-2">
             <span>Room: {roomId}</span>
             <div className={`w-2 h-2 rounded-full ${socketConnected ? 'bg-green-500' : 'bg-red-500'}`} 
                  title={socketConnected ? 'Connected' : 'Disconnected'}></div>
-            {meetingMode === 'webinar' && (
-              <span className="bg-purple-600 px-2 py-1 rounded-full text-xs">Webinar</span>
-            )}
-            {isHost && (
-              <span className="bg-blue-600 px-2 py-1 rounded-full text-xs">Host</span>
-            )}
+            {isHost && (<span className="bg-blue-600 px-2 py-1 rounded-full text-xs">Host</span>)}
           </h1>
           <p className="text-sm text-gray-300">
             {participants.length + 1} participants 
@@ -311,17 +214,6 @@ const RoomPage = () => {
           </p>
         </div>
         <div className="flex items-center space-x-3">
-          {isHost && (
-            <button
-              onClick={() => setShowWebinarControls(!showWebinarControls)}
-              className="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-lg transition duration-200 flex items-center space-x-2"
-            >
-              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-              </svg>
-              <span>Admin Controls</span>
-            </button>
-          )}
           <button
             onClick={leaveRoom}
             className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg transition duration-200"
@@ -331,9 +223,7 @@ const RoomPage = () => {
         </div>
       </div>
 
-      {/* Main Content */}
       <div className="flex-1 flex">
-        {/* Video Area */}
         <div className="flex-1 relative">
           <WebRTCVideoGrid 
             participants={participants} 
@@ -341,27 +231,18 @@ const RoomPage = () => {
             userId={userId}
             userName={userName}
           />
-          
-          {/* Floating Reactions */}
+
           <FloatingReactions />
-          
-          {/* Raise Hand Indicator */}
-          <RaiseHandIndicator isHost={isHost} />
-          
-          {/* Control Bar */}
+
           <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2">
-            <EnhancedControlBar
+            <ControlBar
               onToggleChat={() => setShowChat(!showChat)}
               onToggleParticipants={() => setShowParticipants(!showParticipants)}
               onLeaveRoom={leaveRoom}
-              currentUserId={userId}
-              currentUserName={userName}
-              isHost={isHost}
             />
           </div>
         </div>
 
-        {/* Chat Sidebar */}
         {showChat && (
           <div className="w-80 bg-white border-l border-gray-300">
             <Chat
@@ -375,43 +256,11 @@ const RoomPage = () => {
           </div>
         )}
 
-        {/* Participants Sidebar */}
         {showParticipants && (
           <div className="w-80 bg-white border-l border-gray-300">
             <ParticipantsList
               participants={participants}
               onClose={() => setShowParticipants(false)}
-            />
-          </div>
-        )}
-
-        {/* Webinar Controls Sidebar */}
-        {showWebinarControls && isHost && (
-          <div className="w-96 bg-white border-l border-gray-300 overflow-y-auto">
-            <div className="p-4 border-b bg-purple-50">
-              <div className="flex justify-between items-center">
-                <h2 className="text-lg font-semibold text-purple-800">Admin Controls</h2>
-                <button
-                  onClick={() => setShowWebinarControls(false)}
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-            <WebinarControls
-              participants={participants}
-              isHost={isHost}
-              currentUserId={userId}
-              onMuteParticipant={handleMuteParticipant}
-              onUnmuteParticipant={handleUnmuteParticipant}
-              onRemoveParticipant={handleRemoveParticipant}
-              onBlockUser={handleBlockUser}
-              onSuspendUser={handleSuspendUser}
-              onMakeCoHost={handleMakeCoHost}
-              onRemoveCoHost={handleRemoveCoHost}
             />
           </div>
         )}
