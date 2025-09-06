@@ -222,6 +222,95 @@ function generateMeetingReport(roomId){ const room=rooms.get(roomId); if(!room) 
 app.get('/health', (req,res)=>{ res.json({ status:'OK', timestamp:new Date().toISOString(), server:'ALFA MEET Backend', version:'1.0.0', activeRooms:rooms.size, activeUsers:users.size }); });
 app.get('/debug',(req,res)=>{ res.json({ activeRooms:Array.from(rooms.keys()), activeUsers:users.size, corsOrigins:corsOptions.origin, timestamp:new Date().toISOString() }); });
 
+// In-memory meetings store for admin endpoints
+const meetings = new Map();
+const meetingsByRoomId = new Map();
+
+// --- Minimal Admin & Meetings API ---
+app.post('/api/admin/login', (req, res) => {
+  const { email, password } = req.body || {};
+  if ((email === 'admin@zoom.com' && password === 'admin123') || process.env.SKIP_ADMIN_AUTH === 'true') {
+    return res.json({
+      success: true,
+      user: {
+        id: 'admin-1',
+        email: email || 'admin@zoom.com',
+        name: 'Admin User',
+        role: 'admin'
+      }
+    });
+  }
+  res.status(401).json({ success: false, error: 'Invalid credentials' });
+});
+
+app.post('/api/meetings', (req, res) => {
+  try {
+    const payload = req.body || {};
+    const id = payload.id || `meeting-${Date.now()}`;
+    const roomId = payload.roomId || Math.random().toString(36).substring(2, 10);
+    const meeting = {
+      id,
+      title: payload.title || 'Meeting',
+      description: payload.description || '',
+      scheduledFor: payload.scheduledFor || new Date().toISOString(),
+      duration: typeof payload.duration === 'number' ? payload.duration : 60,
+      maxParticipants: typeof payload.maxParticipants === 'number' ? payload.maxParticipants : 10,
+      createdBy: payload.createdBy || 'Admin',
+      createdAt: new Date().toISOString(),
+      status: 'scheduled',
+      roomId,
+      allowScreenShare: payload.allowScreenShare !== false,
+      allowChat: payload.allowChat !== false,
+      isRecurring: !!payload.isRecurring,
+      requirePassword: !!payload.requirePassword,
+      password: payload.password || '',
+      waitingRoom: !!payload.waitingRoom
+    };
+    meetings.set(id, meeting);
+    meetingsByRoomId.set(roomId, meeting);
+    res.json({ success: true, meeting });
+  } catch (e) {
+    res.status(500).json({ success: false, error: 'Failed to create meeting' });
+  }
+});
+
+app.get('/api/meetings', (req, res) => {
+  res.json({ success: true, meetings: Array.from(meetings.values()) });
+});
+
+app.post('/api/meetings/:meetingId/start', (req, res) => {
+  const { meetingId } = req.params;
+  const meeting = meetings.get(meetingId);
+  if (!meeting) return res.status(404).json({ success: false, error: 'Meeting not found' });
+  meeting.status = 'active';
+  meeting.startedAt = new Date().toISOString();
+  meetings.set(meetingId, meeting);
+  res.json({ success: true, meeting });
+});
+
+app.post('/api/meetings/:meetingId/end', (req, res) => {
+  const { meetingId } = req.params;
+  const meeting = meetings.get(meetingId);
+  if (!meeting) return res.status(404).json({ success: false, error: 'Meeting not found' });
+  meeting.status = 'ended';
+  meeting.endedAt = new Date().toISOString();
+  meetings.set(meetingId, meeting);
+  const roomId = meeting.roomId;
+  if (rooms.has(roomId)) {
+    io.to(roomId).emit('room-ended', { timestamp: new Date().toISOString() });
+    rooms.delete(roomId);
+  }
+  res.json({ success: true, meeting });
+});
+
+app.get('/api/rooms/active', (req, res) => {
+  const list = Array.from(rooms.keys()).map(roomId => ({
+    roomId,
+    meetingId: meetingsByRoomId.get(roomId)?.id || null
+  }));
+  res.json({ rooms: list });
+});
+
 // Create room helpers (kept)
 app.post('/api/rooms', (req, res) => {
   const { name, type, hostId, hostName } = req.body;
