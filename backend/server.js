@@ -556,8 +556,14 @@ io.on('connection', (socket) => {
   socket.on('toggle-audio', ({ roomId, userId, isMuted }) => {
     const room = rooms.get(roomId);
     if (room) {
-      room.updateParticipant(userId, { isAudioMuted: isMuted });
-      socket.to(roomId).emit('user-audio-toggled', { userId, isMuted });
+      // Webinar policy: host/co-host can unmute; attendees default muted
+      const participant = room.participants.get(userId);
+      const isWebinar = room.type === ROOM_TYPES.WEBINAR;
+      const isPrivileged = participant && (participant.role === 'host' || participant.role === 'co-host');
+      const nextMuted = isWebinar && !isPrivileged ? true : !!isMuted;
+      room.updateParticipant(userId, { isAudioMuted: nextMuted });
+      io.to(roomId).emit('user-audio-toggled', { userId, isMuted: nextMuted });
+      console.log(`[AUDIO] ${userId} => ${nextMuted ? 'muted' : 'unmuted'} in room ${roomId} (webinar=${isWebinar})`);
     }
   });
 
@@ -635,6 +641,7 @@ io.on('connection', (socket) => {
       if (targetParticipant) {
         io.to(targetParticipant.socketId).emit('force-mute');
         socket.to(roomId).emit('user-audio-toggled', { userId: targetUserId, isMuted: true });
+        console.log(`[ADMIN] Host ${hostId} muted ${targetUserId} in room ${roomId}`);
       }
     }
   });
@@ -647,6 +654,7 @@ io.on('connection', (socket) => {
       if (targetParticipant) {
         io.to(targetParticipant.socketId).emit('force-unmute');
         socket.to(roomId).emit('user-audio-toggled', { userId: targetUserId, isMuted: false });
+        console.log(`[ADMIN] Host ${hostId} unmuted ${targetUserId} in room ${roomId}`);
       }
     }
   });
