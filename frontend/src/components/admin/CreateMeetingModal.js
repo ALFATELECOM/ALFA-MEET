@@ -13,6 +13,7 @@ const CreateMeetingModal = ({ onClose, onSuccess }) => {
     isRecurring: false,
     requirePassword: false,
     password: '',
+    waitingRoom: false,
     allowScreenShare: true,
     allowChat: true
   });
@@ -234,6 +235,17 @@ const CreateMeetingModal = ({ onClose, onSuccess }) => {
                   className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
                 />
                 <span className="ml-2 text-sm text-gray-700">Enable chat</span>
+              </label>
+
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  name="waitingRoom"
+                  checked={formData.waitingRoom}
+                  onChange={handleChange}
+                  className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                />
+                <span className="ml-2 text-sm text-gray-700">Waiting room</span>
               </label>
 
               <label className="flex items-center">

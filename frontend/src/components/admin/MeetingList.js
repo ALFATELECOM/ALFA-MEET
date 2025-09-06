@@ -42,8 +42,10 @@ const MeetingList = ({ meetings, showActions = true }) => {
     navigate(`/join/${meeting.roomId}`);
   };
 
-  const handleStartMeeting = (meetingId) => {
-    startMeeting(meetingId);
+  const handleStartMeeting = (meeting) => {
+    startMeeting(meeting.id);
+    // Navigate host to join immediately
+    navigate(`/join/${meeting.roomId}`, { state: { userName: meeting.createdBy || 'Host' } });
   };
 
   const handleEndMeeting = (meetingId) => {
@@ -129,7 +131,7 @@ const MeetingList = ({ meetings, showActions = true }) => {
                   {meeting.status === 'scheduled' && (
                     <>
                       <button
-                        onClick={() => handleStartMeeting(meeting.id)}
+                        onClick={() => handleStartMeeting(meeting)}
                         className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition duration-200"
                         title="Start Meeting"
                       >

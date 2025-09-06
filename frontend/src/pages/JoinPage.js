@@ -9,18 +9,35 @@ const JoinPage = () => {
   const navigate = useNavigate();
   const { localStream, isVideoEnabled, isAudioEnabled, toggleVideo, toggleAudio, startCamera, localVideoRef } = useMedia();
   const [userName, setUserName] = useState('');
+  const [password, setPassword] = useState('');
+  const [requirePassword, setRequirePassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     startCamera().catch(console.error);
-  }, [startCamera]);
+    // Fetch meeting meta (password requirement) from backend/local storage
+    try {
+      const saved = localStorage.getItem('adminMeetings');
+      if (saved) {
+        const list = JSON.parse(saved) || [];
+        const meeting = list.find(m => m.roomId === roomId);
+        if (meeting && meeting.requirePassword) {
+          setRequirePassword(true);
+        }
+      }
+    } catch {}
+  }, [startCamera, roomId]);
 
   const joinRoom = async () => {
     if (!userName.trim()) return;
+    if (requirePassword && !password.trim()) {
+      alert('Password is required for this meeting');
+      return;
+    }
     
     setIsLoading(true);
     try {
-      navigate(`/room/${roomId}`, { state: { userName } });
+      navigate(`/room/${roomId}`, { state: { userName, password } });
     } catch (error) {
       console.error('Error joining room:', error);
       setIsLoading(false);
@@ -97,6 +114,22 @@ const JoinPage = () => {
                 onKeyPress={(e) => e.key === 'Enter' && joinRoom()}
               />
             </div>
+
+            {requirePassword && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Meeting Password
+                </label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter meeting password"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  onKeyPress={(e) => e.key === 'Enter' && joinRoom()}
+                />
+              </div>
+            )}
 
             <button
               onClick={joinRoom}
