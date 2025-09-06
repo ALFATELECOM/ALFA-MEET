@@ -12,6 +12,16 @@ const WebRTCVideoGrid = ({ participants = [], roomId, userId, userName, isMobile
   const [remoteStreams, setRemoteStreams] = useState(new Map());
   const remoteVideoRefs = useRef(new Map());
 
+  // Determine webinar role and filter participants when attendee
+  const myRole = (() => {
+    const self = participants.find(p => (p.id || p.userId) === userId);
+    return self?.role;
+  })();
+  const isWebinar = participants.some(p => p.role === 'host' || p.role === 'co-host');
+  const filteredParticipants = (isWebinar && myRole !== 'host' && myRole !== 'co-host')
+    ? participants.filter(p => p.role === 'host' || p.role === 'co-host')
+    : participants;
+
   // Viewport responsiveness for grid sizing
   const [viewportWidth, setViewportWidth] = useState(
     typeof window !== 'undefined' ? window.innerWidth : 1200
@@ -49,7 +59,7 @@ const WebRTCVideoGrid = ({ participants = [], roomId, userId, userName, isMobile
   useEffect(() => {
     if (!socket || !localStream) return;
 
-    participants.forEach(participant => {
+    filteredParticipants.forEach(participant => {
       const participantId = participant.id || participant.userId;
       if (participantId && participantId !== userId && !peerConnections.has(participantId)) {
         createPeerConnection(participantId);
@@ -58,7 +68,7 @@ const WebRTCVideoGrid = ({ participants = [], roomId, userId, userName, isMobile
 
     // Clean up connections for participants who left
     peerConnections.forEach((pc, participantId) => {
-      const stillPresent = participants.some(p => (p.id || p.userId) === participantId);
+      const stillPresent = filteredParticipants.some(p => (p.id || p.userId) === participantId);
       if (!stillPresent) {
         pc.close();
         setPeerConnections(prev => {
@@ -73,7 +83,7 @@ const WebRTCVideoGrid = ({ participants = [], roomId, userId, userName, isMobile
         });
       }
     });
-  }, [participants, socket, localStream, userId, peerConnections]);
+  }, [filteredParticipants, socket, localStream, userId, peerConnections]);
 
   // Create peer connection for a participant
   const createPeerConnection = async (participantId) => {
@@ -255,7 +265,7 @@ const WebRTCVideoGrid = ({ participants = [], roomId, userId, userName, isMobile
   };
 
   const getGridClass = () => {
-    const totalParticipants = participants.length + 1;
+    const totalParticipants = filteredParticipants.length + 1;
     const isSmall = viewportWidth <= 640 || isMobile;
     const isMedium = viewportWidth > 640 && viewportWidth <= 1024;
 
@@ -282,7 +292,7 @@ const WebRTCVideoGrid = ({ participants = [], roomId, userId, userName, isMobile
   };
 
   const sharingParticipantId = (() => {
-    const sharer = participants.find(p => p.isScreenSharing);
+    const sharer = filteredParticipants.find(p => p.isScreenSharing);
     return sharer ? (sharer.id || sharer.userId) : null;
   })();
 
@@ -329,7 +339,7 @@ const WebRTCVideoGrid = ({ participants = [], roomId, userId, userName, isMobile
         </div>
 
         {/* Remote Videos */}
-        {participants.map((participant, index) => {
+        {filteredParticipants.map((participant, index) => {
           const participantName = participant.userName || participant.name || `User ${index + 1}`;
           const participantId = participant.id || participant.userId || `participant-${index}`;
           const isHost = participant.role === 'host';
