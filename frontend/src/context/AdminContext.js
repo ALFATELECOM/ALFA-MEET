@@ -15,6 +15,7 @@ export const AdminProvider = ({ children }) => {
   const [adminUser, setAdminUser] = useState(null);
   const [meetings, setMeetings] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [initialized, setInitialized] = useState(false);
 
   // Load admin status from localStorage on mount
   useEffect(() => {
@@ -25,6 +26,7 @@ export const AdminProvider = ({ children }) => {
       setAdminUser(adminData);
       loadMeetings();
     }
+    setInitialized(true);
   }, []);
 
   const login = async (credentials) => {
@@ -265,6 +267,7 @@ export const AdminProvider = ({ children }) => {
     adminUser,
     meetings,
     loading,
+    initialized,
     login,
     logout,
     createMeeting,

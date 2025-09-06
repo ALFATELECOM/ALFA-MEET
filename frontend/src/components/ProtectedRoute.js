@@ -3,7 +3,12 @@ import { Navigate } from 'react-router-dom';
 import { useAdmin } from '../context/AdminContext';
 
 const ProtectedRoute = ({ children }) => {
-  const { isAdmin } = useAdmin();
+  const { isAdmin, initialized } = useAdmin();
+
+  // Avoid redirect loop before context initialization
+  if (!initialized) {
+    return null;
+  }
 
   if (!isAdmin) {
     return <Navigate to="/admin/login" replace />;
