@@ -16,6 +16,7 @@ export const MediaProvider = ({ children }) => {
   const [isAudioEnabled, setIsAudioEnabled] = useState(true);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const localVideoRef = useRef(null);
+  const [roomContext, setRoomContextState] = useState({ roomId: null, userId: null });
 
   const startCamera = useCallback(async () => {
     try {
@@ -82,18 +83,31 @@ export const MediaProvider = ({ children }) => {
     setIsScreenSharing(false);
   }, []);
 
+  // Store the current room context for components that need it (e.g., WebRTC signaling helpers)
+  const setRoomContext = useCallback((roomId, userId) => {
+    const contextValue = { roomId: roomId || null, userId: userId || null };
+    setRoomContextState(contextValue);
+    try {
+      sessionStorage.setItem('roomContext', JSON.stringify(contextValue));
+    } catch (e) {
+      // Ignore storage errors (e.g., Safari private mode)
+    }
+  }, []);
+
   const value = {
     localStream,
     isVideoEnabled,
     isAudioEnabled,
     isScreenSharing,
     localVideoRef,
+    roomContext,
     startCamera,
     stopCamera,
     toggleVideo,
     toggleAudio,
     startScreenShare,
-    stopScreenShare
+    stopScreenShare,
+    setRoomContext
   };
 
   return (
