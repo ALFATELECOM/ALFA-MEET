@@ -124,6 +124,12 @@ const RoomPage = () => {
       navigate('/');
     });
 
+    // Handle being removed by host
+    socket.on('removed-from-room', ({ reason }) => {
+      alert('You have been removed by the host.');
+      navigate('/');
+    });
+
     socket.on('error', (error) => {
       console.error('Socket error:', error);
     });
@@ -164,6 +170,7 @@ const RoomPage = () => {
       socket.off('new-message');
       socket.off('room-ended');
       socket.off('error');
+      socket.off('removed-from-room');
       socket.off('force-mute');
       socket.off('force-unmute');
       socket.off('user-audio-toggled');

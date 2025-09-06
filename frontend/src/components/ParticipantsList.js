@@ -97,6 +97,14 @@ const ParticipantsList = ({ participants = [], onClose, roomId, isHost = false }
                       )}
                     </>
                   )}
+                  {isHost && participant.role !== 'host' && (
+                    <button
+                      onClick={() => socket?.emit('remove-participant', { roomId, targetUserId: participantId })}
+                      className="px-2 py-1 text-xs rounded bg-red-600 text-white"
+                    >
+                      Remove
+                    </button>
+                  )}
                 </div>
               </div>
             );

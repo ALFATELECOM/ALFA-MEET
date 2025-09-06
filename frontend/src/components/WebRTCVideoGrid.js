@@ -430,8 +430,9 @@ const WebRTCVideoGrid = ({ participants = [], roomId, userId, userName, isMobile
           const isHost = participant.role === 'host';
           const isCoHost = participant.role === 'co-host' || participant.isCoHost;
           const hasRemoteStream = remoteStreams.has(participantId);
-          const isVideoMuted = participant.isVideoMuted !== false; // Default to muted if not specified
-          const isAudioMuted = participant.isAudioMuted !== false;
+          // Default to NOT muted unless explicitly true
+          const isVideoMuted = participant.isVideoMuted === true;
+          const isAudioMuted = participant.isAudioMuted === true;
           const isSharing = !!participant.isScreenSharing;
           
           return (
