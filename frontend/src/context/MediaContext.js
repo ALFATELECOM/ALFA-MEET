@@ -17,6 +17,7 @@ export const MediaProvider = ({ children }) => {
   const [isVideoEnabled, setIsVideoEnabled] = useState(true);
   const [isAudioEnabled, setIsAudioEnabled] = useState(true);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
+  const [isForcedMuted, setIsForcedMuted] = useState(false);
   const localVideoRef = useRef(null);
   const [roomContext, setRoomContextState] = useState({ roomId: null, userId: null });
 
@@ -136,7 +137,7 @@ export const MediaProvider = ({ children }) => {
     } catch {}
   }, [localStream, socket, roomContext, startCamera, restartCamera]);
 
-  const forceMute = useCallback(() => { if (localStream) { const t = localStream.getAudioTracks()[0]; if (t) { t.enabled = false; setIsAudioEnabled(false); } } }, [localStream]);
+  const forceMute = useCallback(() => { setIsForcedMuted(true); if (localStream) { const t = localStream.getAudioTracks()[0]; if (t) { t.enabled = false; setIsAudioEnabled(false); } } }, [localStream]);
   const forceUnmute = useCallback(async () => {
     if (!localStream) {
       try { await startCamera(); } catch {}
@@ -201,7 +202,8 @@ export const MediaProvider = ({ children }) => {
     forceUnmute,
     startScreenShare,
     stopScreenShare,
-    setRoomContext
+    setRoomContext,
+    isForcedMuted
   };
 
   return (
