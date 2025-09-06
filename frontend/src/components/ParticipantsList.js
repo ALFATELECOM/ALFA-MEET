@@ -49,7 +49,8 @@ const ParticipantsList = ({ participants = [], onClose, roomId, isHost = false }
           </div>
 
           {/* Other Participants */}
-          {participants.map((participant, index) => {
+          {/* De-duplicate by stable user id */}
+          {Array.from(new Map(participants.map(p => [(p.id || p.userId), p])).values()).map((participant, index) => {
             const participantName = participant.userName || participant.name || `User ${index + 1}`;
             const participantId = participant.id || participant.userId || `participant-${index}`;
             const isAudioMuted = participant.isAudioMuted !== undefined ? participant.isAudioMuted : false;
@@ -76,6 +77,25 @@ const ParticipantsList = ({ participants = [], onClose, roomId, isHost = false }
                     >
                       {isAudioMuted ? 'Unmute' : 'Mute'}
                     </button>
+                  )}
+                  {isHost && participant.role !== 'host' && (
+                    <>
+                      {participant.role === 'co-host' ? (
+                        <button
+                          onClick={() => socket?.emit('remove-cohost', { roomId, targetUserId: participantId })}
+                          className="px-2 py-1 text-xs rounded bg-gray-600 text-white"
+                        >
+                          Remove Co‑Host
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => socket?.emit('add-cohost', { roomId, targetUserId: participantId })}
+                          className="px-2 py-1 text-xs rounded bg-purple-600 text-white"
+                        >
+                          Make Co‑Host
+                        </button>
+                      )}
+                    </>
                   )}
                 </div>
               </div>
