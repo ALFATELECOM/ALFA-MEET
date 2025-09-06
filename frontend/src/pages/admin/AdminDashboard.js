@@ -276,7 +276,7 @@ const AdminDashboard = () => {
             
             {activeTab === 'meetings' && (
               <div>
-                <ZoomMeetingManager onCreateMeeting={() => setShowCreateModal(true)} />
+                <ZoomMeetingManager />
               </div>
             )}
             
