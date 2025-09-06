@@ -3,6 +3,8 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { SocketProvider } from './context/SocketContext';
 import { MediaProvider } from './context/MediaContext';
 import { AdminProvider } from './context/AdminContext';
+import { ReactionsProvider } from './context/ReactionsContext';
+import { RewardsProvider } from './context/RewardsContext';
 import HomePage from './pages/HomePage';
 import ZoomHomePage from './pages/ZoomHomePage';
 import JoinPage from './pages/JoinPage';
@@ -20,21 +22,25 @@ function App() {
         <AdminProvider>
           <SocketProvider>
             <MediaProvider>
-              <Routes>
-                <Route path="/" element={<ZoomHomePage />} />
-                <Route path="/join/:roomId" element={<JoinPage />} />
-                <Route path="/room/:roomId" element={<RoomPage />} />
-                <Route path="/mobile/:roomId" element={<MobileOptimizedRoom />} />
-                <Route path="/admin/login" element={<AdminLogin />} />
-                <Route
-                  path="/admin/dashboard"
-                  element={
-                    <ProtectedRoute>
-                      <AdminDashboard />
-                    </ProtectedRoute>
-                  }
-                />
-              </Routes>
+              <RewardsProvider>
+                <ReactionsProvider>
+                  <Routes>
+                    <Route path="/" element={<ZoomHomePage />} />
+                    <Route path="/join/:roomId" element={<JoinPage />} />
+                    <Route path="/room/:roomId" element={<RoomPage />} />
+                    <Route path="/mobile/:roomId" element={<MobileOptimizedRoom />} />
+                    <Route path="/admin/login" element={<AdminLogin />} />
+                    <Route
+                      path="/admin/dashboard"
+                      element={
+                        <ProtectedRoute>
+                          <AdminDashboard />
+                        </ProtectedRoute>
+                      }
+                    />
+                  </Routes>
+                </ReactionsProvider>
+              </RewardsProvider>
             </MediaProvider>
           </SocketProvider>
         </AdminProvider>

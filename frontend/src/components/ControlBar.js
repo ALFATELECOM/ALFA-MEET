@@ -6,7 +6,9 @@ import {
   ComputerDesktopIcon,
   ChatBubbleLeftIcon,
   UserGroupIcon,
-  PhoneXMarkIcon
+  PhoneXMarkIcon,
+  HandRaisedIcon,
+  FaceSmileIcon
 } from '@heroicons/react/24/outline';
 import { VideoCameraSlashIcon } from '@heroicons/react/24/solid';
 
@@ -63,6 +65,18 @@ const ControlBar = ({ onToggleChat, onToggleParticipants, onLeaveRoom }) => {
       onClick: onToggleParticipants,
       active: false,
       label: 'Participants'
+    },
+    {
+      icon: HandRaisedIcon,
+      onClick: () => console.log('Raise hand (UI only)') ,
+      active: false,
+      label: 'Raise Hand'
+    },
+    {
+      icon: FaceSmileIcon,
+      onClick: () => console.log('Open reactions (UI only)'),
+      active: false,
+      label: 'Reactions'
     }
   ];
 
