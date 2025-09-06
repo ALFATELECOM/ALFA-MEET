@@ -20,12 +20,7 @@ const ControlBar = ({ onToggleChat, onToggleParticipants, onLeaveRoom }) => {
     toggleVideo, 
     toggleAudio, 
     startScreenShare,
-    stopScreenShare,
-    availableAudioInputs,
-    availableVideoInputs,
-    enumerateDevices,
-    setAudioInputDevice,
-    setVideoInputDevice
+    stopScreenShare
   } = useMedia();
 
   const handleScreenShare = async () => {
@@ -40,13 +35,8 @@ const ControlBar = ({ onToggleChat, onToggleParticipants, onLeaveRoom }) => {
     }
   };
 
-  React.useEffect(() => {
-    enumerateDevices?.();
-  }, [enumerateDevices]);
-
   const [showAudioMenu, setShowAudioMenu] = React.useState(false);
   const [showVideoMenu, setShowVideoMenu] = React.useState(false);
-  const [showInfoMenu, setShowInfoMenu] = React.useState(false);
 
   const controlButtons = [
     {
@@ -115,39 +105,7 @@ const ControlBar = ({ onToggleChat, onToggleParticipants, onLeaveRoom }) => {
         );
       })}
       
-      {/* Audio dropdown */}
-      <div className="relative">
-        <button onClick={() => setShowAudioMenu(v => !v)} className="px-2 text-xs text-gray-300">^</button>
-        {showAudioMenu && (
-          <div className="absolute bottom-12 left-0 bg-gray-900 text-gray-100 rounded shadow-lg p-2 w-56 z-50 border border-gray-700">
-            <div className="text-xs font-semibold text-gray-200 px-2 py-1">Select a microphone</div>
-            <div className="max-h-48 overflow-auto text-sm">
-              {availableAudioInputs?.map((d) => (
-                <button key={d.deviceId} onClick={() => { setAudioInputDevice?.(d.deviceId); setShowAudioMenu(false); }} className="w-full text-left px-2 py-1 hover:bg-gray-700 rounded">
-                  {d.label || 'Microphone'}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Video dropdown */}
-      <div className="relative">
-        <button onClick={() => setShowVideoMenu(v => !v)} className="px-2 text-xs text-gray-300">^</button>
-        {showVideoMenu && (
-          <div className="absolute bottom-12 left-0 bg-gray-900 text-gray-100 rounded shadow-lg p-2 w-56 z-50 border border-gray-700">
-            <div className="text-xs font-semibold text-gray-200 px-2 py-1">Select a camera</div>
-            <div className="max-h-48 overflow-auto text-sm">
-              {availableVideoInputs?.map((d) => (
-                <button key={d.deviceId} onClick={() => { setVideoInputDevice?.(d.deviceId); setShowVideoMenu(false); }} className="w-full text-left px-2 py-1 hover:bg-gray-700 rounded">
-                  {d.label || 'Camera'}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
+      {/* caret menus removed per request */}
 
       {/* Leave Room Button */}
       <div className="ml-4 border-l border-gray-600 pl-4 hidden xs:block sm:block">
