@@ -474,6 +474,27 @@ io.on('connection', (socket) => {
   socket.on('start-screen-share', ({ roomId, userId }) => { const room = rooms.get(roomId); if (!room) return; room.updateParticipant(userId, { isScreenSharing: true }); io.to(roomId).emit('room-participants', { participants: room.getParticipants(), count: room.participants.size, timestamp: new Date().toISOString() }); console.log(`🖥️ SHARE START: room=${roomId} user=${userId}`); });
   socket.on('stop-screen-share', ({ roomId, userId }) => { const room = rooms.get(roomId); if (!room) return; room.updateParticipant(userId, { isScreenSharing: false }); io.to(roomId).emit('room-participants', { participants: room.getParticipants(), count: room.participants.size, timestamp: new Date().toISOString() }); console.log(`🖥️ SHARE STOP: room=${roomId} user=${userId}`); });
 
+  // Host-only: remove a participant from the room
+  socket.on('remove-participant', ({ roomId, targetUserId }) => {
+    const room = rooms.get(roomId);
+    if (!room) return;
+    const acting = users.get(socket.id);
+    if (!acting || acting.userId !== room.hostId) return;
+    if (targetUserId === room.hostId) return; // cannot remove host
+    const target = room.participants.get(targetUserId);
+    if (!target) return;
+    // Notify target and disconnect from room
+    if (target.socketId) {
+      io.to(target.socketId).emit('removed-from-room', { roomId, reason: 'removed-by-host' });
+      const targetSocket = io.sockets.sockets.get(target.socketId);
+      try { targetSocket && targetSocket.leave(roomId); } catch {}
+    }
+    room.removeParticipant(targetUserId);
+    io.to(roomId).emit('user-left', { userId: targetUserId, participantCount: room.participants.size, timestamp: new Date().toISOString() });
+    io.to(roomId).emit('room-participants', { participants: room.getParticipants(), count: room.participants.size, timestamp: new Date().toISOString() });
+    console.log(`🚪 REMOVE USER: room=${roomId} target=${targetUserId}`);
+  });
+
   // Disconnect cleanup
   socket.on('disconnect', () => {
     const user = users.get(socket.id); if (!user) return; const { userId, roomId } = user; const room = rooms.get(roomId); if (!room) { users.delete(socket.id); return; }
