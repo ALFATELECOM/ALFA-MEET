@@ -20,12 +20,51 @@ export const MediaProvider = ({ children }) => {
   const localVideoRef = useRef(null);
   const [roomContext, setRoomContextState] = useState({ roomId: null, userId: null });
 
+  // Device selection/state
+  const [selectedAudioInputId, setSelectedAudioInputId] = useState(null);
+  const [selectedVideoInputId, setSelectedVideoInputId] = useState(null);
+  const [availableAudioInputs, setAvailableAudioInputs] = useState([]);
+  const [availableVideoInputs, setAvailableVideoInputs] = useState([]);
+
+  const enumerateDevices = useCallback(async () => {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const audioInputs = devices.filter(d => d.kind === 'audioinput');
+      const videoInputs = devices.filter(d => d.kind === 'videoinput');
+      setAvailableAudioInputs(audioInputs);
+      setAvailableVideoInputs(videoInputs);
+      if (!selectedAudioInputId && audioInputs[0]) setSelectedAudioInputId(audioInputs[0].deviceId);
+      if (!selectedVideoInputId && videoInputs[0]) setSelectedVideoInputId(videoInputs[0].deviceId);
+    } catch (e) {
+      console.warn('enumerateDevices failed', e);
+    }
+  }, [selectedAudioInputId, selectedVideoInputId]);
+
   const startCamera = useCallback(async () => {
     try {
+      const isMobile = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+      const videoConstraints = isVideoEnabled ? {
+        deviceId: selectedVideoInputId ? { exact: selectedVideoInputId } : undefined,
+        facingMode: selectedVideoInputId ? undefined : 'user',
+        width: isMobile ? { ideal: 1280, max: 1280 } : { ideal: 1280 },
+        height: isMobile ? { ideal: 720, max: 720 } : { ideal: 720 },
+        frameRate: { ideal: 24, max: 30 }
+      } : false;
+
+      const audioConstraints = isAudioEnabled ? {
+        deviceId: selectedAudioInputId ? { exact: selectedAudioInputId } : undefined,
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+        channelCount: 1
+      } : false;
+
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: isVideoEnabled,
-        audio: isAudioEnabled
+        video: videoConstraints,
+        audio: audioConstraints
       });
+
       setLocalStream(stream);
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = stream;
@@ -35,7 +74,7 @@ export const MediaProvider = ({ children }) => {
       console.error('Error accessing camera:', error);
       throw error;
     }
-  }, [isVideoEnabled, isAudioEnabled]);
+  }, [isVideoEnabled, isAudioEnabled, selectedAudioInputId, selectedVideoInputId]);
 
   const stopCamera = useCallback(() => {
     if (localStream) {
@@ -46,6 +85,17 @@ export const MediaProvider = ({ children }) => {
       }
     }
   }, [localStream]);
+
+  const restartCamera = useCallback(async () => {
+    try {
+      if (localStream) {
+        localStream.getTracks().forEach(t => t.stop());
+        setLocalStream(null);
+        if (localVideoRef.current) localVideoRef.current.srcObject = null;
+      }
+    } catch {}
+    await startCamera();
+  }, [localStream, startCamera]);
 
   const toggleVideo = useCallback(() => {
     if (localStream) {
@@ -126,15 +176,12 @@ export const MediaProvider = ({ children }) => {
     setIsScreenSharing(false);
   }, []);
 
-  // Store the current room context for components that need it (e.g., WebRTC signaling helpers)
   const setRoomContext = useCallback((roomId, userId) => {
     const contextValue = { roomId: roomId || null, userId: userId || null };
     setRoomContextState(contextValue);
     try {
       sessionStorage.setItem('roomContext', JSON.stringify(contextValue));
-    } catch (e) {
-      // Ignore storage errors (e.g., Safari private mode)
-    }
+    } catch (e) {}
   }, []);
 
   const value = {
@@ -144,6 +191,16 @@ export const MediaProvider = ({ children }) => {
     isScreenSharing,
     localVideoRef,
     roomContext,
+    // device selection
+    selectedAudioInputId,
+    selectedVideoInputId,
+    availableAudioInputs,
+    availableVideoInputs,
+    enumerateDevices,
+    setAudioInputDevice: async (id) => { setSelectedAudioInputId(id); await restartCamera(); },
+    setVideoInputDevice: async (id) => { setSelectedVideoInputId(id); await restartCamera(); },
+    restartCamera,
+    // media controls
     startCamera,
     stopCamera,
     toggleVideo,
