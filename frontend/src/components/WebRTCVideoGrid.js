@@ -18,11 +18,22 @@ const WebRTCVideoGrid = ({ participants = [], roomId, userId, userName, isMobile
   );
   useEffect(() => {
     const handleResize = () => setViewportWidth(window.innerWidth);
+    const unlockPlay = () => {
+      // Attempt to play streams that were blocked until user gesture
+      try {
+        const elements = Array.from(document.querySelectorAll('video'));
+        elements.forEach(v => v.play().catch(() => {}));
+      } catch {}
+    };
     window.addEventListener('resize', handleResize);
     window.addEventListener('orientationchange', handleResize);
+    window.addEventListener('touchstart', unlockPlay, { once: true });
+    window.addEventListener('click', unlockPlay, { once: true });
     return () => {
       window.removeEventListener('resize', handleResize);
       window.removeEventListener('orientationchange', handleResize);
+      window.removeEventListener('touchstart', unlockPlay);
+      window.removeEventListener('click', unlockPlay);
     };
   }, []);
 

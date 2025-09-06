@@ -32,7 +32,9 @@ const MobileOptimizedRoom = () => {
     toggleVideo, 
     toggleAudio, 
     startCamera,
-    setRoomContext 
+    setRoomContext,
+    forceMute,
+    forceUnmute 
   } = useMedia();
 
   const [userName] = useState(location.state?.userName || 'Mobile User');
@@ -111,13 +113,19 @@ const MobileOptimizedRoom = () => {
       setMessages(prev => [...prev, message]);
     });
 
+    // Admin force actions
+    socket.on('force-mute', () => { try { forceMute(); } catch (e) {} });
+    socket.on('force-unmute', () => { try { forceUnmute(); } catch (e) {} });
+
     return () => {
       socket.off('joined-room');
       socket.off('user-joined');
       socket.off('user-left');
       socket.off('new-message');
+      socket.off('force-mute');
+      socket.off('force-unmute');
     };
-  }, [socket, roomId, userId, userName, meetingType, isHost, startCamera]);
+  }, [socket, roomId, userId, userName, meetingType, isHost, startCamera, forceMute, forceUnmute]);
 
   // Auto-hide controls after 5 seconds of inactivity
   useEffect(() => {

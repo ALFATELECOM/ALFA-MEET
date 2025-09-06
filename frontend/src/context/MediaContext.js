@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useRef, useCallback } from 'react';
+import { useSocket } from './SocketContext';
 
 const MediaContext = createContext();
 
@@ -11,6 +12,7 @@ export const useMedia = () => {
 };
 
 export const MediaProvider = ({ children }) => {
+  const { socket } = useSocket();
   const [localStream, setLocalStream] = useState(null);
   const [isVideoEnabled, setIsVideoEnabled] = useState(true);
   const [isAudioEnabled, setIsAudioEnabled] = useState(true);
@@ -59,11 +61,21 @@ export const MediaProvider = ({ children }) => {
     if (localStream) {
       const audioTrack = localStream.getAudioTracks()[0];
       if (audioTrack) {
-        audioTrack.enabled = !audioTrack.enabled;
-        setIsAudioEnabled(audioTrack.enabled);
+        const nextEnabled = !audioTrack.enabled;
+        audioTrack.enabled = nextEnabled;
+        setIsAudioEnabled(nextEnabled);
+        try {
+          if (socket && roomContext.roomId && roomContext.userId) {
+            socket.emit('toggle-audio', {
+              roomId: roomContext.roomId,
+              userId: roomContext.userId,
+              isMuted: !nextEnabled
+            });
+          }
+        } catch {}
       }
     }
-  }, [localStream]);
+  }, [localStream, socket, roomContext]);
 
   // Force mute/unmute for admin actions
   const forceMute = useCallback(() => {
