@@ -11,6 +11,7 @@ const WebRTCVideoGrid = ({ participants = [], roomId, userId, userName, isMobile
   const [peerConnections, setPeerConnections] = useState(new Map());
   const [remoteStreams, setRemoteStreams] = useState(new Map());
   const remoteVideoRefs = useRef(new Map());
+  const playedVideos = useRef(new Set());
 
   // Determine webinar role and filter participants when attendee
   const myRole = (() => {
@@ -53,6 +54,26 @@ const WebRTCVideoGrid = ({ participants = [], roomId, userId, userName, isMobile
       { urls: 'stun:stun.l.google.com:19302' },
       { urls: 'stun:stun1.l.google.com:19302' },
     ]
+  };
+
+  // Helper to attach stream and safely play avoiding duplicate play() calls
+  const attachStreamToVideo = (element, stream, id) => {
+    if (!element || !stream) return;
+    if (element.srcObject !== stream) {
+      element.srcObject = stream;
+    }
+    const key = id || element;
+    const tryPlay = () => {
+      if (playedVideos.current.has(key)) return;
+      element.play().then(() => {
+        playedVideos.current.add(key);
+      }).catch(() => {});
+    };
+    if (element.readyState >= 2) {
+      tryPlay();
+    } else {
+      element.onloadedmetadata = tryPlay;
+    }
   };
 
   // Initialize WebRTC connections when participants change
@@ -105,10 +126,7 @@ const WebRTCVideoGrid = ({ participants = [], roomId, userId, userName, isMobile
         
         // Assign to video element
         const videoElement = remoteVideoRefs.current.get(participantId);
-        if (videoElement && remoteStream) {
-          videoElement.srcObject = remoteStream;
-          videoElement.play().catch(console.error);
-        }
+        attachStreamToVideo(videoElement, remoteStream, participantId);
       };
 
       // Handle ICE candidates
@@ -175,10 +193,7 @@ const WebRTCVideoGrid = ({ participants = [], roomId, userId, userName, isMobile
             setRemoteStreams(prev => new Map(prev.set(fromId, remoteStream)));
             
             const videoElement = remoteVideoRefs.current.get(fromId);
-            if (videoElement && remoteStream) {
-              videoElement.srcObject = remoteStream;
-              videoElement.play().catch(console.error);
-            }
+            attachStreamToVideo(videoElement, remoteStream, fromId);
           };
 
           // Handle ICE candidates
@@ -258,8 +273,7 @@ const WebRTCVideoGrid = ({ participants = [], roomId, userId, userName, isMobile
       remoteVideoRefs.current.set(participantId, element);
       const stream = remoteStreams.get(participantId);
       if (element && stream) {
-        element.srcObject = stream;
-        element.play().catch(console.error);
+        attachStreamToVideo(element, stream, participantId);
       }
     };
   };
