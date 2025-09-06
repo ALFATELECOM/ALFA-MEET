@@ -20,7 +20,6 @@ export const MediaProvider = ({ children }) => {
   const localVideoRef = useRef(null);
   const [roomContext, setRoomContextState] = useState({ roomId: null, userId: null });
 
-  // Device selection/state
   const [selectedAudioInputId, setSelectedAudioInputId] = useState(null);
   const [selectedVideoInputId, setSelectedVideoInputId] = useState(null);
   const [availableAudioInputs, setAvailableAudioInputs] = useState([]);
@@ -35,21 +34,21 @@ export const MediaProvider = ({ children }) => {
       setAvailableVideoInputs(videoInputs);
       if (!selectedAudioInputId && audioInputs[0]) setSelectedAudioInputId(audioInputs[0].deviceId);
       if (!selectedVideoInputId && videoInputs[0]) setSelectedVideoInputId(videoInputs[0].deviceId);
-    } catch (e) {
-      console.warn('enumerateDevices failed', e);
-    }
+    } catch {}
   }, [selectedAudioInputId, selectedVideoInputId]);
 
   const startCamera = useCallback(async () => {
-    const isMobile = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+    const isIOS = /iPhone|iPad/i.test(ua);
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(ua);
 
     const buildConstraints = () => {
       const videoConstraints = isVideoEnabled ? {
         deviceId: selectedVideoInputId ? { exact: selectedVideoInputId } : undefined,
         facingMode: selectedVideoInputId ? undefined : 'user',
-        width: isMobile ? { ideal: 1280, max: 1280 } : { ideal: 1280 },
-        height: isMobile ? { ideal: 720, max: 720 } : { ideal: 720 },
-        frameRate: { ideal: 24, max: 30 }
+        width: isIOS ? { ideal: 640, max: 640 } : (isMobile ? { ideal: 1280, max: 1280 } : { ideal: 1280 }),
+        height: isIOS ? { ideal: 480, max: 480 } : (isMobile ? { ideal: 720, max: 720 } : { ideal: 720 }),
+        frameRate: isIOS ? { ideal: 24, max: 24 } : { ideal: 24, max: 30 }
       } : false;
       const audioConstraints = isAudioEnabled ? {
         deviceId: selectedAudioInputId ? { exact: selectedAudioInputId } : undefined,
@@ -61,31 +60,19 @@ export const MediaProvider = ({ children }) => {
       return { video: videoConstraints, audio: audioConstraints };
     };
 
-    const attach = (stream) => {
-      setLocalStream(stream);
-      if (localVideoRef.current) {
-        localVideoRef.current.srcObject = stream;
-      }
-    };
-
     try {
-      const constraints = buildConstraints();
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      attach(stream);
+      const stream = await navigator.mediaDevices.getUserMedia(buildConstraints());
+      setLocalStream(stream);
+      if (localVideoRef.current) localVideoRef.current.srcObject = stream;
       return stream;
-    } catch (error) {
-      console.warn('getUserMedia failed, retrying with relaxed constraints:', error?.name || error);
+    } catch (e) {
       try {
-        // Relax constraints and retry
-        const fallback = await navigator.mediaDevices.getUserMedia({
-          video: isVideoEnabled ? (selectedVideoInputId ? true : { facingMode: 'user' }) : false,
-          audio: isAudioEnabled ? true : false
-        });
-        attach(fallback);
+        const fallback = await navigator.mediaDevices.getUserMedia({ video: isVideoEnabled ? { facingMode: 'user' } : false, audio: isAudioEnabled });
+        setLocalStream(fallback);
+        if (localVideoRef.current) localVideoRef.current.srcObject = fallback;
         return fallback;
-      } catch (err2) {
-        console.error('getUserMedia fallback failed:', err2);
-        throw err2;
+      } catch (e2) {
+        throw e2;
       }
     }
   }, [isVideoEnabled, isAudioEnabled, selectedAudioInputId, selectedVideoInputId]);
@@ -94,20 +81,12 @@ export const MediaProvider = ({ children }) => {
     if (localStream) {
       localStream.getTracks().forEach(track => track.stop());
       setLocalStream(null);
-      if (localVideoRef.current) {
-        localVideoRef.current.srcObject = null;
-      }
+      if (localVideoRef.current) localVideoRef.current.srcObject = null;
     }
   }, [localStream]);
 
   const restartCamera = useCallback(async () => {
-    try {
-      if (localStream) {
-        localStream.getTracks().forEach(t => t.stop());
-        setLocalStream(null);
-        if (localVideoRef.current) localVideoRef.current.srcObject = null;
-      }
-    } catch {}
+    try { if (localStream) { localStream.getTracks().forEach(t => t.stop()); setLocalStream(null); if (localVideoRef.current) localVideoRef.current.srcObject = null; } } catch {}
     await startCamera();
   }, [localStream, startCamera]);
 
@@ -120,11 +99,7 @@ export const MediaProvider = ({ children }) => {
         setIsVideoEnabled(nextEnabled);
         try {
           if (socket && roomContext.roomId && roomContext.userId) {
-            socket.emit('toggle-video', {
-              roomId: roomContext.roomId,
-              userId: roomContext.userId,
-              isMuted: !nextEnabled
-            });
+            socket.emit('toggle-video', { roomId: roomContext.roomId, userId: roomContext.userId, isMuted: !nextEnabled });
           }
         } catch {}
       }
@@ -140,63 +115,20 @@ export const MediaProvider = ({ children }) => {
         setIsAudioEnabled(nextEnabled);
         try {
           if (socket && roomContext.roomId && roomContext.userId) {
-            socket.emit('toggle-audio', {
-              roomId: roomContext.roomId,
-              userId: roomContext.userId,
-              isMuted: !nextEnabled
-            });
+            socket.emit('toggle-audio', { roomId: roomContext.roomId, userId: roomContext.userId, isMuted: !nextEnabled });
           }
         } catch {}
       }
     }
   }, [localStream, socket, roomContext]);
 
-  // Force mute/unmute for admin actions
-  const forceMute = useCallback(() => {
-    if (localStream) {
-      const audioTrack = localStream.getAudioTracks()[0];
-      if (audioTrack) {
-        audioTrack.enabled = false;
-        setIsAudioEnabled(false);
-      }
-    }
-  }, [localStream]);
+  const forceMute = useCallback(() => { if (localStream) { const t = localStream.getAudioTracks()[0]; if (t) { t.enabled = false; setIsAudioEnabled(false); } } }, [localStream]);
+  const forceUnmute = useCallback(() => { if (localStream) { const t = localStream.getAudioTracks()[0]; if (t) { t.enabled = true; setIsAudioEnabled(true); } } }, [localStream]);
 
-  const forceUnmute = useCallback(() => {
-    if (localStream) {
-      const audioTrack = localStream.getAudioTracks()[0];
-      if (audioTrack) {
-        audioTrack.enabled = true;
-        setIsAudioEnabled(true);
-      }
-    }
-  }, [localStream]);
+  const startScreenShare = useCallback(async () => { const s = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true }); setIsScreenSharing(true); return s; }, []);
+  const stopScreenShare = useCallback(() => { setIsScreenSharing(false); }, []);
 
-  const startScreenShare = useCallback(async () => {
-    try {
-      const screenStream = await navigator.mediaDevices.getDisplayMedia({
-        video: true,
-        audio: true
-      });
-      setIsScreenSharing(true);
-      return screenStream;
-    } catch (error) {
-      console.error('Error starting screen share:', error);
-      throw error;
-    }
-  }, []);
-
-  const stopScreenShare = useCallback(() => {
-    setIsScreenSharing(false);
-  }, []);
-
-  const setRoomContext = useCallback((roomId, userId) => {
-    const contextValue = { roomId: roomId || null, userId: userId || null };
-    setRoomContextState(contextValue);
-    try {
-      sessionStorage.setItem('roomContext', JSON.stringify(contextValue));
-    } catch (e) {}
-  }, []);
+  const setRoomContext = useCallback((roomId, userId) => { const v = { roomId: roomId || null, userId: userId || null }; setRoomContextState(v); try { sessionStorage.setItem('roomContext', JSON.stringify(v)); } catch {} }, []);
 
   const value = {
     localStream,
