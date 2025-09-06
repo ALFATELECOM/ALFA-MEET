@@ -325,6 +325,21 @@ const WebRTCVideoGrid = ({ participants = [], roomId, userId, userName, isMobile
     });
   }, [isAudioEnabled, localStream, peerConnections]);
 
+  // Screen share handling: if local stream changes (e.g., to display media), update senders' video track
+  useEffect(() => {
+    if (!localStream) return;
+    const vTrack = localStream.getVideoTracks()[0];
+    peerConnections.forEach((pc) => {
+      try {
+        const videoSender = pc.getSenders && pc.getSenders().find(s => s.track && s.track.kind === 'video');
+        if (!videoSender) return;
+        if (vTrack && videoSender.track !== vTrack) {
+          videoSender.replaceTrack(vTrack).catch(() => {});
+        }
+      } catch {}
+    });
+  }, [localStream, peerConnections]);
+
   // Ensure remote peers stop receiving video when camera is disabled; restore cleanly when enabled
   useEffect(() => {
     if (!localStream) return;
