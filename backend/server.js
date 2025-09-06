@@ -165,11 +165,11 @@ class Room {
 
   addParticipant(userId, socketId, userData) {
     let role = userId === this.hostId ? USER_ROLES.HOST : 
-               this.type === ROOM_TYPES.WEBINAR ? USER_ROLES.ATTENDEE : USER_ROLES.PARTICIPANT;
+                 this.type === ROOM_TYPES.WEBINAR ? USER_ROLES.ATTENDEE : USER_ROLES.PARTICIPANT;
     if (userData && userData.role && Object.values(USER_ROLES).includes(userData.role)) {
       role = userData.role;
     }
-
+    
     this.participants.set(userId, {
       ...userData,
       id: userId,
@@ -378,6 +378,13 @@ io.on('connection', (socket) => {
     room.updateParticipant(userId, { isAudioMuted: !!isMuted });
     io.to(roomId).emit('user-audio-toggled', { userId, isMuted: !!isMuted });
   });
+  socket.on('end-room', ({ roomId, hostId }) => {
+    const room = rooms.get(roomId);
+    if (room && room.hostId === hostId) {
+      io.to(roomId).emit('room-ended', { timestamp: new Date().toISOString() });
+      rooms.delete(roomId);
+    }
+  });
   socket.on('toggle-video', ({ roomId, userId, isMuted }) => {
     const room = rooms.get(roomId); if (!room) return;
     room.updateParticipant(userId, { isVideoMuted: !!isMuted });
@@ -387,10 +394,10 @@ io.on('connection', (socket) => {
   // Disconnect cleanup
   socket.on('disconnect', () => {
     const user = users.get(socket.id); if (!user) return; const { userId, roomId } = user; const room = rooms.get(roomId); if (!room) { users.delete(socket.id); return; }
-    room.removeParticipant(userId);
+        room.removeParticipant(userId);
     socket.to(roomId).emit('user-left', { userId, participantCount: room.participants.size, timestamp: new Date().toISOString() });
     io.to(roomId).emit('room-participants', { participants: room.getParticipants(), count: room.participants.size, timestamp: new Date().toISOString() });
-    users.delete(socket.id);
+      users.delete(socket.id);
   });
 });
 
