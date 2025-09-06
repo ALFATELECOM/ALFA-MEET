@@ -90,40 +90,63 @@ export const MediaProvider = ({ children }) => {
     await startCamera();
   }, [localStream, startCamera]);
 
-  const toggleVideo = useCallback(() => {
-    if (localStream) {
-      const videoTrack = localStream.getVideoTracks()[0];
-      if (videoTrack) {
-        const nextEnabled = !videoTrack.enabled;
-        videoTrack.enabled = nextEnabled;
-        setIsVideoEnabled(nextEnabled);
-        try {
-          if (socket && roomContext.roomId && roomContext.userId) {
-            socket.emit('toggle-video', { roomId: roomContext.roomId, userId: roomContext.userId, isMuted: !nextEnabled });
-          }
-        } catch {}
-      }
+  const toggleVideo = useCallback(async () => {
+    if (!localStream) {
+      // If no stream, attempt to start camera when enabling
+      try { await startCamera(); } catch {}
+      return;
     }
-  }, [localStream, socket, roomContext]);
+    const videoTrack = localStream.getVideoTracks()[0];
+    if (!videoTrack) {
+      // No track exists; try to restart camera to reacquire
+      try { await restartCamera(); } catch {}
+      const vt = localStream.getVideoTracks()[0];
+      if (!vt) return;
+    }
+    const track = localStream.getVideoTracks()[0];
+    const nextEnabled = !(track?.enabled);
+    if (track) track.enabled = nextEnabled;
+    setIsVideoEnabled(nextEnabled);
+    try {
+      if (socket && roomContext.roomId && roomContext.userId) {
+        socket.emit('toggle-video', { roomId: roomContext.roomId, userId: roomContext.userId, isMuted: !nextEnabled });
+      }
+    } catch {}
+  }, [localStream, socket, roomContext, startCamera, restartCamera]);
 
-  const toggleAudio = useCallback(() => {
-    if (localStream) {
-      const audioTrack = localStream.getAudioTracks()[0];
-      if (audioTrack) {
-        const nextEnabled = !audioTrack.enabled;
-        audioTrack.enabled = nextEnabled;
-        setIsAudioEnabled(nextEnabled);
-        try {
-          if (socket && roomContext.roomId && roomContext.userId) {
-            socket.emit('toggle-audio', { roomId: roomContext.roomId, userId: roomContext.userId, isMuted: !nextEnabled });
-          }
-        } catch {}
-      }
+  const toggleAudio = useCallback(async () => {
+    if (!localStream) {
+      try { await startCamera(); } catch {}
+      return;
     }
-  }, [localStream, socket, roomContext]);
+    const audioTrack = localStream.getAudioTracks()[0];
+    if (!audioTrack) {
+      try { await restartCamera(); } catch {}
+      const at = localStream.getAudioTracks()[0];
+      if (!at) return;
+    }
+    const track = localStream.getAudioTracks()[0];
+    const nextEnabled = !(track?.enabled);
+    if (track) track.enabled = nextEnabled;
+    setIsAudioEnabled(nextEnabled);
+    try {
+      if (socket && roomContext.roomId && roomContext.userId) {
+        socket.emit('toggle-audio', { roomId: roomContext.roomId, userId: roomContext.userId, isMuted: !nextEnabled });
+      }
+    } catch {}
+  }, [localStream, socket, roomContext, startCamera, restartCamera]);
 
   const forceMute = useCallback(() => { if (localStream) { const t = localStream.getAudioTracks()[0]; if (t) { t.enabled = false; setIsAudioEnabled(false); } } }, [localStream]);
-  const forceUnmute = useCallback(() => { if (localStream) { const t = localStream.getAudioTracks()[0]; if (t) { t.enabled = true; setIsAudioEnabled(true); } } }, [localStream]);
+  const forceUnmute = useCallback(async () => {
+    if (!localStream) {
+      try { await startCamera(); } catch {}
+    }
+    const t = localStream && localStream.getAudioTracks()[0];
+    if (t) { t.enabled = true; setIsAudioEnabled(true); return; }
+    try { await restartCamera(); } catch {}
+    const t2 = localStream && localStream.getAudioTracks()[0];
+    if (t2) { t2.enabled = true; setIsAudioEnabled(true); }
+  }, [localStream, startCamera, restartCamera]);
 
   const startScreenShare = useCallback(async () => {
     try {

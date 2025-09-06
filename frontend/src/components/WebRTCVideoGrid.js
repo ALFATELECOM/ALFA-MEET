@@ -4,7 +4,7 @@ import { useSocket } from '../context/SocketContext';
 import { UserIcon, MicrophoneIcon, VideoCameraIcon } from '@heroicons/react/24/outline';
 
 const WebRTCVideoGrid = ({ participants = [], roomId, userId, userName, isMobile = false }) => {
-  const { localVideoRef, isVideoEnabled, isAudioEnabled, localStream } = useMedia();
+  const { localVideoRef, isVideoEnabled, isAudioEnabled, localStream, restartCamera } = useMedia();
   const { socket } = useSocket();
   
   // Store peer connections and remote streams
@@ -308,6 +308,34 @@ const WebRTCVideoGrid = ({ participants = [], roomId, userId, userName, isMobile
       } catch {}
     });
   }, [isAudioEnabled, localStream, peerConnections]);
+
+  // Ensure remote peers stop receiving video when camera is disabled; restore cleanly when enabled
+  useEffect(() => {
+    if (!localStream) return;
+    peerConnections.forEach((pc) => {
+      try {
+        const videoSender = pc.getSenders && pc.getSenders().find(s => s.track && s.track.kind === 'video');
+        if (!videoSender) return;
+        if (!isVideoEnabled) {
+          videoSender.replaceTrack(null).catch(() => {});
+        } else {
+          const videoTrack = localStream.getVideoTracks()[0];
+          if (videoTrack) {
+            videoSender.replaceTrack(videoTrack).catch(() => {});
+          } else {
+            // If the video track is missing/ended, attempt a lightweight restart
+            (async () => {
+              try {
+                await restartCamera?.();
+                const vt = localStream && localStream.getVideoTracks()[0];
+                if (vt) videoSender.replaceTrack(vt).catch(() => {});
+              } catch {}
+            })();
+          }
+        }
+      } catch {}
+    });
+  }, [isVideoEnabled, localStream, peerConnections, restartCamera]);
 
   const getGridClass = () => {
     const totalParticipants = filteredParticipants.length + 1;
