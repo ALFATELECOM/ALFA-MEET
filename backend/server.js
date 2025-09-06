@@ -474,6 +474,54 @@ io.on('connection', (socket) => {
   socket.on('start-screen-share', ({ roomId, userId }) => { const room = rooms.get(roomId); if (!room) return; room.updateParticipant(userId, { isScreenSharing: true }); io.to(roomId).emit('room-participants', { participants: room.getParticipants(), count: room.participants.size, timestamp: new Date().toISOString() }); console.log(`🖥️ SHARE START: room=${roomId} user=${userId}`); });
   socket.on('stop-screen-share', ({ roomId, userId }) => { const room = rooms.get(roomId); if (!room) return; room.updateParticipant(userId, { isScreenSharing: false }); io.to(roomId).emit('room-participants', { participants: room.getParticipants(), count: room.participants.size, timestamp: new Date().toISOString() }); console.log(`🖥️ SHARE STOP: room=${roomId} user=${userId}`); });
 
+  // Chat messages
+  socket.on('send-message', (data) => {
+    try {
+      const { roomId, userId, userName, message, timestamp } = data || {};
+      const room = rooms.get(roomId);
+      if (!room || !message) return;
+      const msg = { id: uuidv4(), userId, userName, message, timestamp: timestamp || new Date().toISOString() };
+      room.chatHistory.push(msg);
+      io.to(roomId).emit('new-message', msg);
+      console.log(`💬 CHAT: room=${roomId} user=${userId} ${message}`);
+    } catch (e) { console.error('send-message error', e); }
+  });
+
+  // Reactions
+  socket.on('send-reaction', (data) => {
+    try {
+      const { roomId, userId, userName, emoji, timestamp } = data || {};
+      const room = rooms.get(roomId);
+      if (!room || !emoji) return;
+      const reaction = { id: uuidv4(), userId, userName, emoji, timestamp: timestamp || new Date().toISOString() };
+      room.reactionHistory.push(reaction);
+      io.to(roomId).emit('new-reaction', reaction);
+      console.log(`😀 REACTION: room=${roomId} user=${userId} ${emoji}`);
+    } catch (e) { console.error('send-reaction error', e); }
+  });
+
+  // Raise hand
+  socket.on('raise-hand', (data) => {
+    try {
+      const { roomId, userId, userName } = data || {};
+      if (!roomId || !userId) return;
+      if (!raisedHands.has(roomId)) raisedHands.set(roomId, new Set());
+      raisedHands.get(roomId).add(userId);
+      io.to(roomId).emit('hand-raised', { userId, userName, timestamp: new Date().toISOString() });
+      console.log(`✋ HAND RAISED: room=${roomId} user=${userId}`);
+    } catch (e) { console.error('raise-hand error', e); }
+  });
+
+  socket.on('lower-hand', (data) => {
+    try {
+      const { roomId, userId } = data || {};
+      if (!roomId || !userId) return;
+      if (raisedHands.has(roomId)) raisedHands.get(roomId).delete(userId);
+      io.to(roomId).emit('hand-lowered', { userId, timestamp: new Date().toISOString() });
+      console.log(`✋ HAND LOWERED: room=${roomId} user=${userId}`);
+    } catch (e) { console.error('lower-hand error', e); }
+  });
+
   // Host-only: remove a participant from the room
   socket.on('remove-participant', ({ roomId, targetUserId }) => {
     const room = rooms.get(roomId);
