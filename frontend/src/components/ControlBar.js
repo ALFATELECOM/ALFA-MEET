@@ -119,11 +119,11 @@ const ControlBar = ({ onToggleChat, onToggleParticipants, onLeaveRoom }) => {
       <div className="relative">
         <button onClick={() => setShowAudioMenu(v => !v)} className="px-2 text-xs text-gray-300">^</button>
         {showAudioMenu && (
-          <div className="absolute bottom-12 left-0 bg-white rounded shadow-lg p-2 w-56 z-50">
-            <div className="text-xs font-semibold text-gray-700 px-2 py-1">Select a microphone</div>
+          <div className="absolute bottom-12 left-0 bg-gray-900 text-gray-100 rounded shadow-lg p-2 w-56 z-50 border border-gray-700">
+            <div className="text-xs font-semibold text-gray-200 px-2 py-1">Select a microphone</div>
             <div className="max-h-48 overflow-auto text-sm">
               {availableAudioInputs?.map((d) => (
-                <button key={d.deviceId} onClick={() => { setAudioInputDevice?.(d.deviceId); setShowAudioMenu(false); }} className="w-full text-left px-2 py-1 hover:bg-gray-100">
+                <button key={d.deviceId} onClick={() => { setAudioInputDevice?.(d.deviceId); setShowAudioMenu(false); }} className="w-full text-left px-2 py-1 hover:bg-gray-700 rounded">
                   {d.label || 'Microphone'}
                 </button>
               ))}
@@ -136,42 +136,16 @@ const ControlBar = ({ onToggleChat, onToggleParticipants, onLeaveRoom }) => {
       <div className="relative">
         <button onClick={() => setShowVideoMenu(v => !v)} className="px-2 text-xs text-gray-300">^</button>
         {showVideoMenu && (
-          <div className="absolute bottom-12 left-0 bg-white rounded shadow-lg p-2 w-56 z-50">
-            <div className="text-xs font-semibold text-gray-700 px-2 py-1">Select a camera</div>
+          <div className="absolute bottom-12 left-0 bg-gray-900 text-gray-100 rounded shadow-lg p-2 w-56 z-50 border border-gray-700">
+            <div className="text-xs font-semibold text-gray-200 px-2 py-1">Select a camera</div>
             <div className="max-h-48 overflow-auto text-sm">
               {availableVideoInputs?.map((d) => (
-                <button key={d.deviceId} onClick={() => { setVideoInputDevice?.(d.deviceId); setShowVideoMenu(false); }} className="w-full text-left px-2 py-1 hover:bg-gray-100">
+                <button key={d.deviceId} onClick={() => { setVideoInputDevice?.(d.deviceId); setShowVideoMenu(false); }} className="w-full text-left px-2 py-1 hover:bg-gray-700 rounded">
                   {d.label || 'Camera'}
                 </button>
               ))}
             </div>
           </div>
-        )}
-      </div>
-
-      {/* Device selectors */}
-      <div className="ml-2 flex items-center space-x-2">
-        {availableVideoInputs && availableVideoInputs.length > 0 && (
-          <select
-            onChange={(e) => setVideoInputDevice?.(e.target.value)}
-            className="bg-gray-700 text-white text-xs rounded p-1"
-            title="Select Camera"
-          >
-            {availableVideoInputs.map(d => (
-              <option key={d.deviceId} value={d.deviceId}>{d.label || 'Camera'}</option>
-            ))}
-          </select>
-        )}
-        {availableAudioInputs && availableAudioInputs.length > 0 && (
-          <select
-            onChange={(e) => setAudioInputDevice?.(e.target.value)}
-            className="bg-gray-700 text-white text-xs rounded p-1"
-            title="Select Microphone"
-          >
-            {availableAudioInputs.map(d => (
-              <option key={d.deviceId} value={d.deviceId}>{d.label || 'Microphone'}</option>
-            ))}
-          </select>
         )}
       </div>
 
