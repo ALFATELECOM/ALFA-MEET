@@ -108,8 +108,10 @@ const ROOM_TYPES = {
 const USER_ROLES = {
   HOST: 'host',
   MODERATOR: 'moderator',
+  CO_HOST: 'co-host',
   PARTICIPANT: 'participant',
-  ATTENDEE: 'attendee'
+  ATTENDEE: 'attendee',
+  PANELIST: 'panelist'
 };
 
 class Room {
@@ -162,8 +164,12 @@ class Room {
   }
 
   addParticipant(userId, socketId, userData) {
-    const role = userId === this.hostId ? USER_ROLES.HOST : 
-                 this.type === ROOM_TYPES.WEBINAR ? USER_ROLES.ATTENDEE : USER_ROLES.PARTICIPANT;
+    let role = userId === this.hostId ? USER_ROLES.HOST : 
+               this.type === ROOM_TYPES.WEBINAR ? USER_ROLES.ATTENDEE : USER_ROLES.PARTICIPANT;
+    if (userData && userData.role && Object.values(USER_ROLES).includes(userData.role)) {
+      // Allow explicit role only for non-attendee when not violating webinar rules; will still be validated by admin actions later
+      role = userData.role;
+    }
     
     this.participants.set(userId, {
       ...userData,
