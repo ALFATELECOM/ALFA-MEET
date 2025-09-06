@@ -13,7 +13,7 @@ import {
 } from '@heroicons/react/24/outline';
 
 const MeetingList = ({ meetings, showActions = true }) => {
-  const { startMeeting, endMeeting, deleteMeeting } = useAdmin();
+  const { startMeeting, endMeeting, deleteMeeting, updateMeeting } = useAdmin();
   const navigate = useNavigate();
 
   const formatDateTime = (dateString) => {
@@ -54,6 +54,17 @@ const MeetingList = ({ meetings, showActions = true }) => {
     if (window.confirm('Are you sure you want to delete this meeting?')) {
       deleteMeeting(meetingId);
     }
+  };
+
+  const handleEditMeeting = (meeting) => {
+    const title = window.prompt('Update meeting title:', meeting.title);
+    if (title === null) return;
+    const description = window.prompt('Update description (optional):', meeting.description || '');
+    if (description === null) return;
+    const durationStr = window.prompt('Update duration (minutes):', String(meeting.duration || 60));
+    const duration = parseInt(durationStr || '60');
+    if (!Number.isFinite(duration) || duration <= 0) return alert('Invalid duration');
+    updateMeeting(meeting.id, { title, description, duration });
   };
 
   const copyRoomLink = (roomId) => {
@@ -162,6 +173,15 @@ const MeetingList = ({ meetings, showActions = true }) => {
                       <LinkIcon className="h-5 w-5" />
                     </button>
                   )}
+
+                  {/* Edit (always visible) */}
+                  <button
+                    onClick={() => handleEditMeeting(meeting)}
+                    className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition duration-200"
+                    title="Edit Meeting"
+                  >
+                    ✎
+                  </button>
                   
                   <button
                     onClick={() => handleDeleteMeeting(meeting.id)}
