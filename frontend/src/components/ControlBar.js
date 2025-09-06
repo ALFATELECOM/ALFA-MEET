@@ -35,8 +35,7 @@ const ControlBar = ({ onToggleChat, onToggleParticipants, onLeaveRoom }) => {
     }
   };
 
-  const [showAudioMenu, setShowAudioMenu] = React.useState(false);
-  const [showVideoMenu, setShowVideoMenu] = React.useState(false);
+  const [showHostTools, setShowHostTools] = React.useState(false);
 
   const controlButtons = [
     {
@@ -105,7 +104,18 @@ const ControlBar = ({ onToggleChat, onToggleParticipants, onLeaveRoom }) => {
         );
       })}
       
-      {/* caret menus removed per request */}
+      {/* Host tools dropdown */}
+      <div className="relative">
+        <button onClick={() => setShowHostTools(v => !v)} className="p-3 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm">Host tools</button>
+        {showHostTools && (
+          <div className="absolute bottom-12 left-0 bg-gray-900 text-gray-100 rounded shadow-lg p-2 w-56 z-50 border border-gray-700">
+            <div className="text-xs font-semibold text-gray-200 px-2 py-1">Quick actions</div>
+            <button onClick={() => { console.log('Mute all'); setShowHostTools(false); }} className="w-full text-left px-2 py-1 hover:bg-gray-700 rounded text-sm">Mute all</button>
+            <button onClick={() => { console.log('Toggle chat'); setShowHostTools(false); }} className="w-full text-left px-2 py-1 hover:bg-gray-700 rounded text-sm">Toggle chat</button>
+            <button onClick={() => { navigator.clipboard.writeText(window.location.href); setShowHostTools(false); }} className="w-full text-left px-2 py-1 hover:bg-gray-700 rounded text-sm">Copy invite link</button>
+          </div>
+        )}
+      </div>
 
       {/* Leave Room Button */}
       <div className="ml-4 border-l border-gray-600 pl-4 hidden xs:block sm:block">
