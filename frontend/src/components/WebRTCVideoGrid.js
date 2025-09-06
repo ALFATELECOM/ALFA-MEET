@@ -4,7 +4,7 @@ import { useSocket } from '../context/SocketContext';
 import { UserIcon, MicrophoneIcon, VideoCameraIcon } from '@heroicons/react/24/outline';
 
 const WebRTCVideoGrid = ({ participants = [], roomId, userId, userName, isMobile = false }) => {
-  const { localVideoRef, isVideoEnabled, isAudioEnabled, localStream, restartCamera } = useMedia();
+  const { localVideoRef, isVideoEnabled, isAudioEnabled, localStream, restartCamera, isForcedMuted } = useMedia();
   const { socket } = useSocket();
   
   // Store peer connections and remote streams
@@ -319,11 +319,12 @@ const WebRTCVideoGrid = ({ participants = [], roomId, userId, userName, isMobile
           if (audioSender.track !== audioTrack) {
             audioSender.replaceTrack(audioTrack).catch(() => {});
           }
-          audioTrack.enabled = isAudioEnabled;
+          // If force-muted by admin, ensure audio is not sent regardless of local UI
+          audioTrack.enabled = isForcedMuted ? false : isAudioEnabled;
         }
       } catch {}
     });
-  }, [isAudioEnabled, localStream, peerConnections]);
+  }, [isAudioEnabled, isForcedMuted, localStream, peerConnections]);
 
   // Screen share handling: if local stream changes (e.g., to display media), update senders' video track
   useEffect(() => {
