@@ -481,7 +481,7 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Handle WebRTC signaling
+  // Handle legacy WebRTC signaling by socket id
   socket.on('offer', ({ to, offer }) => {
     socket.to(to).emit('offer', { from: socket.id, offer });
   });
@@ -490,8 +490,66 @@ io.on('connection', (socket) => {
     socket.to(to).emit('answer', { from: socket.id, answer });
   });
 
-  socket.on('ice-candidate', ({ to, candidate }) => {
-    socket.to(to).emit('ice-candidate', { from: socket.id, candidate });
+  socket.on('ice-candidate', (payload) => {
+    // Support both legacy { to, candidate } and new { roomId, targetId, candidate }
+    if (payload && payload.to) {
+      const { to, candidate } = payload;
+      socket.to(to).emit('ice-candidate', { from: socket.id, candidate });
+      return;
+    }
+  });
+
+  // Handle room-aware WebRTC signaling by userId (frontend expects 'webrtc-*' events)
+  socket.on('webrtc-offer', ({ roomId, targetId, offer }) => {
+    try {
+      const sender = users.get(socket.id);
+      const room = rooms.get(roomId);
+      if (!sender || !room) return;
+      const targetParticipant = room.participants.get(targetId);
+      if (targetParticipant && targetParticipant.socketId) {
+        io.to(targetParticipant.socketId).emit('webrtc-offer', {
+          fromId: sender.userId,
+          offer
+        });
+      }
+    } catch (err) {
+      console.error('❌ Error handling webrtc-offer:', err);
+    }
+  });
+
+  socket.on('webrtc-answer', ({ roomId, targetId, answer }) => {
+    try {
+      const sender = users.get(socket.id);
+      const room = rooms.get(roomId);
+      if (!sender || !room) return;
+      const targetParticipant = room.participants.get(targetId);
+      if (targetParticipant && targetParticipant.socketId) {
+        io.to(targetParticipant.socketId).emit('webrtc-answer', {
+          fromId: sender.userId,
+          answer
+        });
+      }
+    } catch (err) {
+      console.error('❌ Error handling webrtc-answer:', err);
+    }
+  });
+
+  socket.on('ice-candidate', ({ roomId, targetId, candidate }) => {
+    try {
+      if (!roomId || !targetId) return; // handled by legacy handler above
+      const sender = users.get(socket.id);
+      const room = rooms.get(roomId);
+      if (!sender || !room) return;
+      const targetParticipant = room.participants.get(targetId);
+      if (targetParticipant && targetParticipant.socketId) {
+        io.to(targetParticipant.socketId).emit('ice-candidate', {
+          fromId: sender.userId,
+          candidate
+        });
+      }
+    } catch (err) {
+      console.error('❌ Error handling ICE candidate:', err);
+    }
   });
 
   // Media controls
