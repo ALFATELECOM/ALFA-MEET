@@ -97,6 +97,8 @@ const raisedHands = new Map();
 const blockedUsers = new Map();
 const suspendedUsers = new Map();
 const coHosts = new Map();
+// Waiting room queues per room
+const waitingQueues = new Map();
 
 // Room types
 const ROOM_TYPES = {
@@ -133,6 +135,7 @@ class Room {
       maxParticipants: 10000,
       requireAdminStart: false,
       allowCoHosts: true,
+      meetingLocked: false,
       userManagement: {
         allowBlock: true,
         allowSuspend: true,
@@ -258,7 +261,7 @@ app.post('/api/meetings', (req, res) => {
       createdBy: payload.createdBy || 'Admin',
       createdAt: new Date().toISOString(),
       status: 'scheduled',
-      roomId,
+    roomId,
       allowScreenShare: payload.allowScreenShare !== false,
       allowChat: payload.allowChat !== false,
       isRecurring: !!payload.isRecurring,
@@ -357,6 +360,25 @@ io.on('connection', (socket) => {
       let room = rooms.get(roomId);
       if (!room) { room = new Room(roomId, `Room ${roomId}`, ROOM_TYPES.MEETING, userId); rooms.set(roomId, room); }
       if (room.blockedUsers.has(userId)) { socket.emit('join-rejected', { reason: 'User is blocked from this room' }); return; }
+      // Meeting locked
+      if (room.settings.meetingLocked && userId !== room.hostId) {
+        socket.emit('join-rejected', { reason: 'locked', message: 'Meeting is locked by host' });
+        return;
+      }
+      // Waiting room flow (non-host only)
+      if (room.settings.waitingRoom && userId !== room.hostId) {
+        if (!waitingQueues.has(roomId)) waitingQueues.set(roomId, []);
+        const queue = waitingQueues.get(roomId);
+        const pending = { userId, userName, socketId: socket.id };
+        queue.push(pending);
+        waitingQueues.set(roomId, queue);
+        socket.join(roomId); // Allow host to target socket via room broadcast if needed
+        socket.emit('waiting-room', { status: 'pending', position: queue.length });
+        const host = room.participants.get(room.hostId);
+        if (host && host.socketId) io.to(host.socketId).emit('waiting-room-updated', { waiting: queue });
+        console.log(`⏳ WAITING: room=${roomId} user=${userId} (${userName})`);
+        return;
+      }
       // If this userId already exists in the room, evict the old session to avoid duplicates
       const existing = room.participants.get(userId);
       if (existing && existing.socketId && existing.socketId !== socket.id) {
@@ -398,6 +420,38 @@ io.on('connection', (socket) => {
     socket.to(roomId).emit('user-left', { userId, participantCount: room.participants.size, timestamp: new Date().toISOString() });
     io.to(roomId).emit('room-participants', { participants: room.getParticipants(), count: room.participants.size, timestamp: new Date().toISOString() });
     users.delete(socket.id);
+  });
+
+  // Host admits/denies user from waiting room
+  socket.on('admit-user', ({ roomId, targetUserId }) => {
+    const room = rooms.get(roomId); if (!room) return;
+    const acting = users.get(socket.id); if (!acting || acting.userId !== room.hostId) return;
+    const queue = waitingQueues.get(roomId) || [];
+    const idx = queue.findIndex(u => u.userId === targetUserId);
+    if (idx === -1) return;
+    const [pending] = queue.splice(idx, 1);
+    waitingQueues.set(roomId, queue);
+    const participantData = { userName: pending.userName };
+    room.addParticipant(pending.userId, pending.socketId, participantData);
+    users.set(pending.socketId, { userId: pending.userId, roomId, userData: participantData });
+    io.to(pending.socketId).emit('joined-room', { success: true, roomId, roomName: room.name, roomType: room.type, participants: room.getParticipants(), settings: room.settings, chatHistory: room.chatHistory, reactionHistory: room.reactionHistory.slice(-50), raisedHands: Array.from(raisedHands.get(roomId) || []), activePoll: room.activePoll, recordingStatus: room.recordingStatus, meetingNotes: room.meetingNotes, userRewards: getUserRewards(pending.userId), timestamp: new Date().toISOString() });
+    socket.to(roomId).emit('user-joined', { userId: pending.userId, userData: room.participants.get(pending.userId), participantCount: room.participants.size, timestamp: new Date().toISOString() });
+    io.to(roomId).emit('room-participants', { participants: room.getParticipants(), count: room.participants.size, timestamp: new Date().toISOString() });
+    const host = room.participants.get(room.hostId); if (host && host.socketId) io.to(host.socketId).emit('waiting-room-updated', { waiting: waitingQueues.get(roomId) || [] });
+    console.log(`✅ ADMIT: room=${roomId} user=${pending.userId}`);
+  });
+
+  socket.on('deny-user', ({ roomId, targetUserId }) => {
+    const room = rooms.get(roomId); if (!room) return;
+    const acting = users.get(socket.id); if (!acting || acting.userId !== room.hostId) return;
+    const queue = waitingQueues.get(roomId) || [];
+    const idx = queue.findIndex(u => u.userId === targetUserId);
+    if (idx === -1) return;
+    const [pending] = queue.splice(idx, 1);
+    waitingQueues.set(roomId, queue);
+    if (pending.socketId) io.to(pending.socketId).emit('join-rejected', { reason: 'denied', message: 'Host denied entry' });
+    const host = room.participants.get(room.hostId); if (host && host.socketId) io.to(host.socketId).emit('waiting-room-updated', { waiting: waitingQueues.get(roomId) || [] });
+    console.log(`❌ DENY: room=${roomId} user=${targetUserId}`);
   });
 
   // WebRTC signaling
@@ -478,7 +532,7 @@ io.on('connection', (socket) => {
   socket.on('send-message', (data) => {
     try {
       const { roomId, userId, userName, message, timestamp } = data || {};
-      const room = rooms.get(roomId);
+    const room = rooms.get(roomId);
       if (!room || !message) return;
       const msg = { id: uuidv4(), userId, userName, message, timestamp: timestamp || new Date().toISOString() };
       room.chatHistory.push(msg);
@@ -491,7 +545,7 @@ io.on('connection', (socket) => {
   socket.on('send-reaction', (data) => {
     try {
       const { roomId, userId, userName, emoji, timestamp } = data || {};
-      const room = rooms.get(roomId);
+    const room = rooms.get(roomId);
       if (!room || !emoji) return;
       const reaction = { id: uuidv4(), userId, userName, emoji, timestamp: timestamp || new Date().toISOString() };
       room.reactionHistory.push(reaction);
@@ -522,6 +576,52 @@ io.on('connection', (socket) => {
     } catch (e) { console.error('lower-hand error', e); }
   });
 
+  // Host tools
+  socket.on('mute-all', ({ roomId }) => {
+    const room = rooms.get(roomId);
+    if (!room) return;
+    const acting = users.get(socket.id);
+    if (!acting || acting.userId !== room.hostId) return;
+    room.participants.forEach((p, id) => {
+      room.updateParticipant(id, { isAudioMuted: true });
+      if (p.socketId) io.to(p.socketId).emit('force-mute');
+      io.to(roomId).emit('user-audio-toggled', { userId: id, isMuted: true });
+    });
+    console.log(`🔇 MUTE ALL: room=${roomId}`);
+  });
+
+  socket.on('toggle-chat-lock', ({ roomId }) => {
+    const room = rooms.get(roomId);
+    if (!room) return;
+    const acting = users.get(socket.id);
+    if (!acting || acting.userId !== room.hostId) return;
+    const next = !(room.settings.allowChat !== false);
+    // next === true means lock chat -> allowChat false
+    room.settings.allowChat = !next;
+    io.to(roomId).emit('chat-locked', { locked: next });
+    console.log(`🔐 CHAT LOCK: room=${roomId} locked=${next}`);
+  });
+
+  socket.on('toggle-meeting-lock', ({ roomId }) => {
+    const room = rooms.get(roomId);
+    if (!room) return;
+    const acting = users.get(socket.id);
+    if (!acting || acting.userId !== room.hostId) return;
+    room.settings.meetingLocked = !room.settings.meetingLocked;
+    io.to(roomId).emit('meeting-lock-changed', { locked: room.settings.meetingLocked });
+    console.log(`🔒 MEETING LOCK: room=${roomId} locked=${room.settings.meetingLocked}`);
+  });
+
+  socket.on('toggle-waiting-room', ({ roomId }) => {
+    const room = rooms.get(roomId);
+    if (!room) return;
+    const acting = users.get(socket.id);
+    if (!acting || acting.userId !== room.hostId) return;
+    room.settings.waitingRoom = !room.settings.waitingRoom;
+    io.to(roomId).emit('waiting-room-toggled', { enabled: room.settings.waitingRoom });
+    console.log(`🚪 WAITING ROOM TOGGLE: room=${roomId} enabled=${room.settings.waitingRoom}`);
+  });
+
   // Host-only: remove a participant from the room
   socket.on('remove-participant', ({ roomId, targetUserId }) => {
     const room = rooms.get(roomId);
@@ -537,7 +637,7 @@ io.on('connection', (socket) => {
       const targetSocket = io.sockets.sockets.get(target.socketId);
       try { targetSocket && targetSocket.leave(roomId); } catch {}
     }
-    room.removeParticipant(targetUserId);
+        room.removeParticipant(targetUserId);
     io.to(roomId).emit('user-left', { userId: targetUserId, participantCount: room.participants.size, timestamp: new Date().toISOString() });
     io.to(roomId).emit('room-participants', { participants: room.getParticipants(), count: room.participants.size, timestamp: new Date().toISOString() });
     console.log(`🚪 REMOVE USER: room=${roomId} target=${targetUserId}`);
