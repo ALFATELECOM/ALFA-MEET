@@ -363,6 +363,7 @@ io.on('connection', (socket) => {
       socket.join(roomId);
       const currentHands = raisedHands.get(roomId) ? Array.from(raisedHands.get(roomId).values()) : [];
       const participants = room.getParticipants();
+      console.log(`✅ JOIN: room=${roomId} user=${userId} (${userName}) participants=${participants.length}`);
       socket.emit('joined-room', { success: true, roomId, roomName: room.name, roomType: room.type, participants, settings: room.settings, chatHistory: room.chatHistory, reactionHistory: room.reactionHistory.slice(-50), raisedHands: currentHands, activePoll: room.activePoll, recordingStatus: room.recordingStatus, meetingNotes: room.meetingNotes, userRewards: getUserRewards(userId), timestamp: new Date().toISOString() });
       socket.to(roomId).emit('user-joined', { userId, userData: room.participants.get(userId), participantCount: room.participants.size, timestamp: new Date().toISOString() });
       io.to(roomId).emit('room-participants', { participants, count: room.participants.size, timestamp: new Date().toISOString() });
@@ -372,6 +373,21 @@ io.on('connection', (socket) => {
     }
   });
 
+  // Graceful leave-room
+  socket.on('leave-room', ({ roomId }) => {
+    const user = users.get(socket.id);
+    if (!user) return;
+    const { userId } = user;
+    const room = rooms.get(roomId);
+    if (!room) return;
+    room.removeParticipant(userId);
+    socket.leave(roomId);
+    console.log(`👋 LEAVE: room=${roomId} user=${userId}`);
+    socket.to(roomId).emit('user-left', { userId, participantCount: room.participants.size, timestamp: new Date().toISOString() });
+    io.to(roomId).emit('room-participants', { participants: room.getParticipants(), count: room.participants.size, timestamp: new Date().toISOString() });
+    users.delete(socket.id);
+  });
+
   // WebRTC signaling
   socket.on('webrtc-offer', ({ roomId, targetId, offer }) => {
     const sender = users.get(socket.id); const room = rooms.get(roomId); if (!sender || !room) return; const target = room.participants.get(targetId); if (target && target.socketId) io.to(target.socketId).emit('webrtc-offer', { fromId: sender.userId, offer });
@@ -379,51 +395,26 @@ io.on('connection', (socket) => {
   socket.on('webrtc-answer', ({ roomId, targetId, answer }) => {
     const sender = users.get(socket.id); const room = rooms.get(roomId); if (!sender || !room) return; const target = room.participants.get(targetId); if (target && target.socketId) io.to(target.socketId).emit('webrtc-answer', { fromId: sender.userId, answer });
   });
-  socket.on('ice-candidate', (payload) => {
-    if (payload && payload.to) { const { to, candidate } = payload; socket.to(to).emit('ice-candidate', { from: socket.id, candidate }); return; }
-  });
-  socket.on('ice-candidate', ({ roomId, targetId, candidate }) => {
-    const sender = users.get(socket.id); const room = rooms.get(roomId); if (!sender || !room) return; const target = room.participants.get(targetId); if (target && target.socketId) io.to(target.socketId).emit('ice-candidate', { fromId: sender.userId, candidate });
-  });
+  socket.on('ice-candidate', (payload) => { if (payload && payload.to) { const { to, candidate } = payload; socket.to(to).emit('ice-candidate', { from: socket.id, candidate }); return; } });
+  socket.on('ice-candidate', ({ roomId, targetId, candidate }) => { const sender = users.get(socket.id); const room = rooms.get(roomId); if (!sender || !room) return; const target = room.participants.get(targetId); if (target && target.socketId) io.to(target.socketId).emit('ice-candidate', { fromId: sender.userId, candidate }); });
 
   // Media toggles
-  socket.on('toggle-audio', ({ roomId, userId, isMuted }) => {
-    const room = rooms.get(roomId); if (!room) return;
-    room.updateParticipant(userId, { isAudioMuted: !!isMuted });
-    io.to(roomId).emit('user-audio-toggled', { userId, isMuted: !!isMuted });
-  });
-  socket.on('end-room', ({ roomId, hostId }) => {
-    const room = rooms.get(roomId);
-    if (room && room.hostId === hostId) {
-      io.to(roomId).emit('room-ended', { timestamp: new Date().toISOString() });
-      rooms.delete(roomId);
-    }
-  });
-  socket.on('toggle-video', ({ roomId, userId, isMuted }) => {
-    const room = rooms.get(roomId); if (!room) return;
-    room.updateParticipant(userId, { isVideoMuted: !!isMuted });
-    io.to(roomId).emit('user-video-toggled', { userId, isMuted: !!isMuted });
-  });
+  socket.on('toggle-audio', ({ roomId, userId, isMuted }) => { const room = rooms.get(roomId); if (!room) return; room.updateParticipant(userId, { isAudioMuted: !!isMuted }); io.to(roomId).emit('user-audio-toggled', { userId, isMuted: !!isMuted }); console.log(`🎤 AUDIO: room=${roomId} user=${userId} muted=${!!isMuted}`); });
+  socket.on('toggle-video', ({ roomId, userId, isMuted }) => { const room = rooms.get(roomId); if (!room) return; room.updateParticipant(userId, { isVideoMuted: !!isMuted }); io.to(roomId).emit('user-video-toggled', { userId, isMuted: !!isMuted }); console.log(`📷 VIDEO: room=${roomId} user=${userId} muted=${!!isMuted}`); });
+  socket.on('end-room', ({ roomId, hostId }) => { const room = rooms.get(roomId); if (room && room.hostId === hostId) { io.to(roomId).emit('room-ended', { timestamp: new Date().toISOString() }); rooms.delete(roomId); console.log(`🏁 END ROOM: room=${roomId} by host=${hostId}`); } });
 
   // Screen share markers
-  socket.on('start-screen-share', ({ roomId, userId }) => {
-    const room = rooms.get(roomId); if (!room) return;
-    room.updateParticipant(userId, { isScreenSharing: true });
-    io.to(roomId).emit('room-participants', { participants: room.getParticipants(), count: room.participants.size, timestamp: new Date().toISOString() });
-  });
-  socket.on('stop-screen-share', ({ roomId, userId }) => {
-    const room = rooms.get(roomId); if (!room) return;
-    room.updateParticipant(userId, { isScreenSharing: false });
-    io.to(roomId).emit('room-participants', { participants: room.getParticipants(), count: room.participants.size, timestamp: new Date().toISOString() });
-  });
+  socket.on('start-screen-share', ({ roomId, userId }) => { const room = rooms.get(roomId); if (!room) return; room.updateParticipant(userId, { isScreenSharing: true }); io.to(roomId).emit('room-participants', { participants: room.getParticipants(), count: room.participants.size, timestamp: new Date().toISOString() }); console.log(`🖥️ SHARE START: room=${roomId} user=${userId}`); });
+  socket.on('stop-screen-share', ({ roomId, userId }) => { const room = rooms.get(roomId); if (!room) return; room.updateParticipant(userId, { isScreenSharing: false }); io.to(roomId).emit('room-participants', { participants: room.getParticipants(), count: room.participants.size, timestamp: new Date().toISOString() }); console.log(`🖥️ SHARE STOP: room=${roomId} user=${userId}`); });
 
   // Disconnect cleanup
   socket.on('disconnect', () => {
     const user = users.get(socket.id); if (!user) return; const { userId, roomId } = user; const room = rooms.get(roomId); if (!room) { users.delete(socket.id); return; }
-    room.removeParticipant(userId);
+        room.removeParticipant(userId);
     socket.to(roomId).emit('user-left', { userId, participantCount: room.participants.size, timestamp: new Date().toISOString() });
     io.to(roomId).emit('room-participants', { participants: room.getParticipants(), count: room.participants.size, timestamp: new Date().toISOString() });
-    users.delete(socket.id);
+      users.delete(socket.id);
+    console.log(`🔴 DISCONNECT: room=${roomId} user=${userId}`);
   });
 });
 
