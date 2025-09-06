@@ -22,6 +22,8 @@ const WebRTCVideoGrid = ({ participants = [], roomId, userId, userName, isMobile
   const filteredParticipants = (isWebinar && myRole !== 'host' && myRole !== 'co-host')
     ? participants.filter(p => p.role === 'host' || p.role === 'co-host')
     : participants;
+  // Do not render/connect to self in the remote tiles
+  const remoteParticipants = filteredParticipants.filter(p => (p.id || p.userId) !== userId);
 
   // Viewport responsiveness for grid sizing
   const [viewportWidth, setViewportWidth] = useState(
@@ -82,7 +84,7 @@ const WebRTCVideoGrid = ({ participants = [], roomId, userId, userName, isMobile
   useEffect(() => {
     if (!socket || !localStream) return;
 
-    filteredParticipants.forEach(participant => {
+    remoteParticipants.forEach(participant => {
       const participantId = participant.id || participant.userId;
       if (participantId && participantId !== userId && !peerConnections.has(participantId)) {
         createPeerConnection(participantId);
@@ -91,7 +93,7 @@ const WebRTCVideoGrid = ({ participants = [], roomId, userId, userName, isMobile
 
     // Clean up connections for participants who left
     peerConnections.forEach((pc, participantId) => {
-      const stillPresent = filteredParticipants.some(p => (p.id || p.userId) === participantId);
+      const stillPresent = remoteParticipants.some(p => (p.id || p.userId) === participantId);
       if (!stillPresent) {
         pc.close();
         setPeerConnections(prev => {
@@ -106,7 +108,7 @@ const WebRTCVideoGrid = ({ participants = [], roomId, userId, userName, isMobile
         });
       }
     });
-  }, [filteredParticipants, socket, localStream, userId, peerConnections]);
+  }, [remoteParticipants, socket, localStream, userId, peerConnections]);
 
   // Create peer connection for a participant
   const createPeerConnection = async (participantId) => {
@@ -151,15 +153,29 @@ const WebRTCVideoGrid = ({ participants = [], roomId, userId, userName, isMobile
       pc.onconnectionstatechange = () => {
         console.log(`🔗 Connection state with ${participantId}:`, pc.connectionState);
         if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
-          // Attempt to reconnect
-          setTimeout(() => createPeerConnection(participantId), 2000);
+          // Attempt to ICE restart
+          try {
+            pc.restartIce?.();
+          } catch {}
+          setTimeout(() => {
+            // Only try to renegotiate if still present
+            if (peerConnections.get(participantId) === pc) {
+              (async () => {
+                try {
+                  const newOffer = await pc.createOffer({ iceRestart: true });
+                  await pc.setLocalDescription(newOffer);
+                  socket.emit('webrtc-offer', { roomId, targetId: participantId, offer: newOffer });
+                } catch {}
+              })();
+            }
+          }, 1500);
         }
       };
 
       setPeerConnections(prev => new Map(prev.set(participantId, pc)));
 
-      // Create and send offer
-      const offer = await pc.createOffer();
+      // Create and send offer with constrained SDP for stability
+      const offer = await pc.createOffer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
       await pc.setLocalDescription(offer);
       
       socket.emit('webrtc-offer', {
@@ -223,7 +239,7 @@ const WebRTCVideoGrid = ({ participants = [], roomId, userId, userName, isMobile
         }
 
         await pc.setRemoteDescription(offer);
-        const answer = await pc.createAnswer();
+        const answer = await pc.createAnswer({ offerToReceiveAudio: true, offerToReceiveVideo: true });
         await pc.setLocalDescription(answer);
         
         socket.emit('webrtc-answer', {
@@ -338,30 +354,26 @@ const WebRTCVideoGrid = ({ participants = [], roomId, userId, userName, isMobile
   }, [isVideoEnabled, localStream, peerConnections, restartCamera]);
 
   const getGridClass = () => {
-    const totalParticipants = filteredParticipants.length + 1;
+    const total = remoteParticipants.length + 1;
     const isSmall = viewportWidth <= 640 || isMobile;
     const isMedium = viewportWidth > 640 && viewportWidth <= 1024;
 
     if (isSmall) {
-      if (totalParticipants === 1) return 'grid-cols-1';
-      if (totalParticipants === 2) return 'grid-cols-1 grid-rows-2';
-      if (totalParticipants <= 4) return 'grid-cols-2 grid-rows-2';
-      return 'grid-cols-2 grid-rows-3';
+      // Portrait mobile: 1 column scroll; Landscape small: 2 columns
+      return 'grid-cols-1 auto-rows-[minmax(180px,_auto)] sm:grid-cols-2';
     }
 
     if (isMedium) {
-      if (totalParticipants === 1) return 'grid-cols-1';
-      if (totalParticipants === 2) return 'grid-cols-2';
-      if (totalParticipants <= 4) return 'grid-cols-2 grid-rows-2';
-      if (totalParticipants <= 6) return 'grid-cols-3 grid-rows-2';
+      if (total <= 2) return 'grid-cols-2';
+      if (total <= 4) return 'grid-cols-2 grid-rows-2';
+      if (total <= 6) return 'grid-cols-3 grid-rows-2';
       return 'grid-cols-3 grid-rows-3';
     }
 
-    if (totalParticipants === 1) return 'grid-cols-1';
-    if (totalParticipants === 2) return 'grid-cols-2';
-    if (totalParticipants <= 4) return 'grid-cols-2 grid-rows-2';
-    if (totalParticipants <= 6) return 'grid-cols-3 grid-rows-2';
-    return 'grid-cols-3 grid-rows-3';
+    if (total <= 2) return 'grid-cols-2';
+    if (total <= 4) return 'grid-cols-2 grid-rows-2';
+    if (total <= 6) return 'grid-cols-3 grid-rows-2';
+    return 'grid-cols-4 grid-rows-3';
   };
 
   const sharingParticipantId = (() => {
@@ -412,7 +424,7 @@ const WebRTCVideoGrid = ({ participants = [], roomId, userId, userName, isMobile
         </div>
 
         {/* Remote Videos */}
-        {filteredParticipants.map((participant, index) => {
+        {remoteParticipants.map((participant, index) => {
           const participantName = participant.userName || participant.name || `User ${index + 1}`;
           const participantId = participant.id || participant.userId || `participant-${index}`;
           const isHost = participant.role === 'host';
