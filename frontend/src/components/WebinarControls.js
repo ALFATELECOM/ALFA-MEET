@@ -93,6 +93,14 @@ const WebinarControls = ({
           </button>
         </div>
 
+        {/* Roles legend */}
+        <div className="text-xs text-gray-600">
+          <span className="mr-2">Roles:</span>
+          <span className="mr-2">Host/Co-Host: full control</span>
+          <span className="mr-2">Panelist: can present</span>
+          <span>Attendee: view-only (unless allowed)</span>
+        </div>
+
         {/* Participants List */}
         <div className="space-y-2 max-h-80 overflow-y-auto">
           {participants.map((participant) => {
