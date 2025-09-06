@@ -55,6 +55,8 @@ const WebRTCVideoGrid = ({ participants = [], roomId, userId, userName, isMobile
       { urls: 'stun:stun1.l.google.com:19302' },
     ]
   };
+  // Limit bitrate on mobile to reduce flicker/CPU spikes
+  const isMobileUA = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
   // Helper to attach stream and safely play avoiding duplicate play() calls
   const attachStreamToVideo = (element, stream, id) => {
@@ -114,7 +116,12 @@ const WebRTCVideoGrid = ({ participants = [], roomId, userId, userName, isMobile
       // Add local stream to peer connection
       if (localStream) {
         localStream.getTracks().forEach(track => {
-          pc.addTrack(track, localStream);
+          const sender = pc.addTrack(track, localStream);
+          if (isMobileUA && sender && track.kind === 'video' && sender.setParameters) {
+            const params = sender.getParameters();
+            params.encodings = [{ maxBitrate: 300000 }];
+            sender.setParameters(params).catch(() => {});
+          }
         });
       }
 
@@ -182,7 +189,12 @@ const WebRTCVideoGrid = ({ participants = [], roomId, userId, userName, isMobile
           // Add local stream
           if (localStream) {
             localStream.getTracks().forEach(track => {
-              pc.addTrack(track, localStream);
+              const sender = pc.addTrack(track, localStream);
+              if (isMobileUA && sender && track.kind === 'video' && sender.setParameters) {
+                const params = sender.getParameters();
+                params.encodings = [{ maxBitrate: 300000 }];
+                sender.setParameters(params).catch(() => {});
+              }
             });
           }
 

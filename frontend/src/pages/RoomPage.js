@@ -175,6 +175,18 @@ const RoomPage = () => {
         if (pid === targetId) { return { ...p, isAudioMuted: isMuted }; }
         return p;
       }));
+      // If this event targets current user, enforce local track state
+      if (targetId === userId) {
+        try { isMuted ? forceMute() : forceUnmute(); } catch (e) { console.error(e); }
+      }
+    });
+
+    socket.on('user-video-toggled', ({ userId: targetId, isMuted }) => {
+      setParticipants(prev => prev.map(p => {
+        const pid = p.id || p.userId;
+        if (pid === targetId) { return { ...p, isVideoMuted: isMuted }; }
+        return p;
+      }));
     });
 
     // React to admin force mute/unmute
@@ -201,6 +213,7 @@ const RoomPage = () => {
       socket.off('force-mute');
       socket.off('force-unmute');
       socket.off('user-audio-toggled');
+      socket.off('user-video-toggled');
     };
   }, [socket, roomId, userName, navigate, startCamera]);
 

@@ -16,6 +16,20 @@
   min-height: -webkit-fill-available;
 }
 
+/* Prevent layout thrashering during virtual keyboard / orientation changes */
+@media (max-width: 820px) {
+  html, body, #root {
+    height: 100%;
+    overflow-x: hidden;
+  }
+  video {
+    /* Hint to compositor to avoid flicker on GPU switch */
+    will-change: transform;
+    transform: translateZ(0);
+    backface-visibility: hidden;
+  }
+}
+
 /* Safe area helpers (iOS notches) */
 .safe-top {
   padding-top: constant(safe-area-inset-top);

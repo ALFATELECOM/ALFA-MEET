@@ -51,11 +51,21 @@ export const MediaProvider = ({ children }) => {
     if (localStream) {
       const videoTrack = localStream.getVideoTracks()[0];
       if (videoTrack) {
-        videoTrack.enabled = !videoTrack.enabled;
-        setIsVideoEnabled(videoTrack.enabled);
+        const nextEnabled = !videoTrack.enabled;
+        videoTrack.enabled = nextEnabled;
+        setIsVideoEnabled(nextEnabled);
+        try {
+          if (socket && roomContext.roomId && roomContext.userId) {
+            socket.emit('toggle-video', {
+              roomId: roomContext.roomId,
+              userId: roomContext.userId,
+              isMuted: !nextEnabled
+            });
+          }
+        } catch {}
       }
     }
-  }, [localStream]);
+  }, [localStream, socket, roomContext]);
 
   const toggleAudio = useCallback(() => {
     if (localStream) {

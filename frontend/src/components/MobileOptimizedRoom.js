@@ -116,6 +116,23 @@ const MobileOptimizedRoom = () => {
     // Admin force actions
     socket.on('force-mute', () => { try { forceMute(); } catch (e) {} });
     socket.on('force-unmute', () => { try { forceUnmute(); } catch (e) {} });
+    socket.on('user-audio-toggled', ({ userId: targetId, isMuted }) => {
+      setParticipants(prev => prev.map(p => {
+        const pid = p.id || p.userId;
+        if (pid === targetId) return { ...p, isAudioMuted: isMuted };
+        return p;
+      }));
+      if (targetId === userId) {
+        try { isMuted ? forceMute() : forceUnmute(); } catch (e) {}
+      }
+    });
+    socket.on('user-video-toggled', ({ userId: targetId, isMuted }) => {
+      setParticipants(prev => prev.map(p => {
+        const pid = p.id || p.userId;
+        if (pid === targetId) return { ...p, isVideoMuted: isMuted };
+        return p;
+      }));
+    });
 
     return () => {
       socket.off('joined-room');
@@ -124,6 +141,8 @@ const MobileOptimizedRoom = () => {
       socket.off('new-message');
       socket.off('force-mute');
       socket.off('force-unmute');
+      socket.off('user-audio-toggled');
+      socket.off('user-video-toggled');
     };
   }, [socket, roomId, userId, userName, meetingType, isHost, startCamera, forceMute, forceUnmute]);
 
